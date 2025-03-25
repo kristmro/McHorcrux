@@ -10,6 +10,7 @@ import numpy as np
 import jax
 from functools import partial
 from jax.scipy.linalg import block_diag
+from jax.flatten_util import ravel_pytree
 # ---------------------------------------------------------------------------
 # 1) Helpers for angles, "to_positive_angle", "pipi", etc.
 #    You can keep your original Python definitions but replace np with jnp:
@@ -156,25 +157,34 @@ def rk4_step_impl(x, dt, f, *args):
 
 rk4_step = jax.jit(rk4_step_impl, static_argnums=(2,))
 
-def rk38_step(x, dt, f, *args):
-    """
-    Performs one RK3/8 integration step.
-    
-    Parameters:
-        x: current state (JAX array)
-        dt: time step (float)
-        f: function that computes the derivative, with signature f(x, *args)
-        *args: additional parameters passed to f
-    
-    Returns:
-        x_next: state after time dt
-    """
-    k1 = f(x, *args)
-    k2 = f(x + (dt/3.0) * k1, *args)
-    k3 = f(x + dt * (-1.0/3.0 * k1 + 1.0 * k2), *args)
-    k4 = f(x + dt * (k1 - k2 + k3), *args)
-    return x + dt * (1.0/8.0 * k1 + 3.0/8.0 * k2 + 3.0/8.0 * k3 + 1.0/8.0 * k4)
+@partial(jax.jit, static_argnums=(0,))
+def rk38_step(func, h, x, t, *args):
+    """TODO: docstring."""
+    # RK38 Butcher tableau
+    s = 4
+    A = jnp.array([
+        [0,    0, 0, 0],
+        [1/3,  0, 0, 0],
+        [-1/3, 1, 0, 0],
+        [1,   -1, 1, 0],
+    ])
+    b = jnp.array([1/8, 3/8, 3/8, 1/8])
+    c = jnp.array([0,   1/3, 2/3, 1])
 
+    def scan_fun(carry, cut):
+        i, ai, bi, ci = cut
+        x, t, h, K, *args = carry
+        ti = t + h*ci
+        xi = x + h*(K.T @ ai)
+        ki = func(xi, ti, *args)
+        K = K.at[i].set(ki)
+        carry = (x, t, h, K, *args)
+        return carry, ki
+
+    init_carry = (x, t, h, jnp.squeeze(jnp.zeros((s, x.size))), *args)
+    carry, K = jax.lax.scan(scan_fun, init_carry, (jnp.arange(s), A, b, c))
+    xf = x + h*(K.T @ b)
+    return xf
 
 def random_ragged_spline(key, T_total, num_knots, poly_orders, deriv_orders,
                          min_step, max_step, min_knot, max_knot):
@@ -341,3 +351,110 @@ def spline(t, t_knots, coefs):
     tau = (t - t_knots[i]) / (t_knots[i+1] - t_knots[i])
     x = jnp.tensordot(coefs[i], tau**powers, axes=(0, 0))
     return x
+
+def tree_normsq(x_tree):
+    """Compute sum of squared norms across a PyTree."""
+    normsq = jax.tree_util.tree_reduce(lambda x, y: x + jnp.sum(y**2),
+                                       x_tree, 0.)
+    return normsq
+
+def epoch(key, data, batch_size, batch_axis=0, ragged=False):
+    """TODO: docstring."""
+    # Check for consistent dimensions along `batch_axis`
+    flat_data, _ = jax.tree_util.tree_flatten(data)
+    num_samples = jnp.array(jax.tree_util.tree_map(
+        lambda x: jnp.shape(x)[batch_axis],
+        flat_data
+    ))
+    if not jnp.all(num_samples == num_samples[0]):
+        raise ValueError('Batch dimensions not equal!')
+    num_samples = num_samples[0]
+
+    # Compute the number of batches
+    if ragged:
+        num_batches = -(-num_samples // batch_size)  # ceiling division
+    else:
+        num_batches = num_samples // batch_size  # floor division
+
+    # Loop through batches (with pre-shuffling)
+    shuffled_idx = jax.random.permutation(key, num_samples)
+    for i in range(num_batches):
+        batch_idx = shuffled_idx[i*batch_size:(i+1)*batch_size]
+        batch = jax.tree_util.tree_map(
+            lambda x: jnp.take(x, batch_idx, batch_axis),
+            data
+        )
+        yield batch
+
+@partial(jax.jit, static_argnums=(0, 2, 3, 4))
+def odeint_fixed_step(func, x0, t0, t1, step_size, *args):
+    """TODO: docstring."""
+    # Use `numpy` for purely static operations on static arguments
+    # (see: https://github.com/google/jax/issues/5208)
+    num_steps = int(np.maximum(np.abs((t1 - t0)/step_size), 1))
+
+    ts = jnp.linspace(t0, t1, num_steps + 1)
+    xs = odeint_ckpt(func, x0, ts, *args)
+    return xs, ts
+
+@partial(jax.jit, static_argnums=(0,))
+def odeint_ckpt(func, x0, ts, *args):
+    """TODO: docstring."""
+    flat_x0, unravel = ravel_pytree(x0)
+
+    def flat_func(flat_x, t, *args):
+        x = unravel(flat_x)
+        dx = func(x, t, *args)
+        flat_dx, _ = ravel_pytree(dx)
+        return flat_dx
+
+    # Solve in flat form
+    flat_xs = _odeint_ckpt(flat_func, flat_x0, ts, *args)
+    xs = jax.vmap(unravel)(flat_xs)
+    return xs
+
+@partial(jax.jit, static_argnums=(0,))
+def _odeint_ckpt(func, x0, ts, *args):
+
+    def scan_fun(carry, t1):
+        x0, t0, *args = carry
+        x1 = rk38_step(func, t1 - t0, x0, t0, *args)
+        carry = (x1, t1, *args)
+        return carry, x1
+
+    ts = jnp.atleast_1d(ts)
+    init_carry = (x0, ts[0], *args)  # dummy state at same time as `t0`
+    carry, xs = jax.lax.scan(scan_fun, init_carry, ts)
+    return xs
+
+def params_to_cholesky(params):
+    """TODO: docstring."""
+    params = jnp.atleast_1d(params)
+    d = params.shape[-1]
+    n = svec_to_mat_dim(d)  # corresponding symmetric matrix dimension
+    rows, cols = jnp.tril_indices(n)
+    log_L = jnp.zeros((*params.shape[:-1], n, n)).at[...,
+                                                     rows, cols].set(params)
+    rows, cols = jnp.diag_indices(n)
+    L = log_L.at[..., rows, cols].set(jnp.exp(log_L[..., rows, cols]))
+    return L
+
+def svec_to_mat_dim(d):
+    """Compute the symmetric matrix dimension with `d` unique elements."""
+    n = (int(np.sqrt(8 * d + 1)) - 1) // 2
+    if d != mat_to_svec_dim(n):
+        raise ValueError('Invalid vector length `d = %d` for filling the '
+                         'triangular of a symmetric matrix!' % d)
+    return n
+
+def mat_to_svec_dim(n):
+    """Compute the number of unique entries in a symmetric matrix."""
+    d = (n * (n + 1)) // 2
+    return d
+
+def params_to_posdef(params):
+    """TODO: docstring."""
+    L = params_to_cholesky(params)
+    LT = jnp.swapaxes(L, -2, -1)
+    X = L @ LT
+    return X
