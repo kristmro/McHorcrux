@@ -31,21 +31,18 @@ Within each core, you’ll find relevant sub-directories such as `simulator/`, `
   - **Deep Learning Ecosystem**: Integrate with Torch libraries, stable baselines, or other external ML toolkits.
 
 ---
+## Demonstration Notebooks 
 
-## Demonstration Scripts (JAX)
+There are **two** notebooks to illustrate performance differences between a **pure JAX** approach and a more **traditional** Python simulation. Although they share a similar setup, each uses slightly different random draws, so you may observe differences in final trajectories.
 
-There are **two** JAX demos to illustrate performance differences between **pure JAX** and more **traditional** simulation:
-
-1. **`demos/demo_jax/notebook_demo_jax.py`**  
+1. **`demos/demo_jax/notebook_demo_jax.ipynb`**  
    - Loads vessel parameters in JAX, sets up a JONSWAP wave environment, and runs a **pure JAX** RK4 integration loop.  
    - Times the simulation, plots positions/headings, and highlights how JAX remains fast even with large wave discretizations or small time-steps.
 
-2. **`demos/demo_jax/notebook_demo_jax_mclsimpy.py`**  
-   - Similar scenario but uses **`mclsimpy`** (pure Python object-oriented style).  
+2. **`demos/demo_numpy/notebook_demo.ipynb`**  
+   - A comparable scenario but using **`mclsimpy`** (pure Python, object-oriented style).  
    - Demonstrates how “vanilla” Python code can slow down for large `N` or finer `dt`.  
-   - Compare speed with the first script to see JAX’s performance advantage.
-
-> **Tip**: **Run both** demos and observe the difference in simulation times.
+   - Compare runtime against the JAX notebook to see the performance advantage.
 
 ---
 
