@@ -15,6 +15,11 @@ Within each core, you’ll find relevant sub-directories such as `simulator/`, `
 
 ## Why Three Cores?
 
+- **JAX Core**  
+  - **High-Performance + Differentiability**: JAX’s `jit`, `vmap`, `scan` accelerate repeated or large-scale simulations.  
+  - **Meta-Learning & Machine Learning**: Perfect for backprop through an entire simulation (including wave models and vessel ODEs).  
+  - **Speed Gains**: Logarithmic faster than naive Python for large wave sets (`N`) or small `dt`.
+
 - **NumPy Core**  
   - **Language Simplicity**: Standard Python + NumPy.  
   - **Comprehensive & Modular Gym**: Facilitates model-predictive control (MPC), advanced testing, or custom tasks within a **modular environment**.  
@@ -24,11 +29,6 @@ Within each core, you’ll find relevant sub-directories such as `simulator/`, `
   - **RL & Machine Learning**: Tailored for policy training (e.g., PPO, DDPG), gradient-based controllers, or model-based RL in **Torch**.  
   - **Gym-Like Environment**: Structured similarly to NumPy’s environment but aiming for direct integration with PyTorch RL frameworks.  
   - **Deep Learning Ecosystem**: Integrate with Torch libraries, stable baselines, or other external ML toolkits.
-
-- **JAX Core**  
-  - **High-Performance + Differentiability**: JAX’s `jit`, `vmap`, `scan` accelerate repeated or large-scale simulations.  
-  - **Meta-Learning**: Perfect for backprop through an entire simulation (including wave models and vessel ODEs).  
-  - **Speed Gains**: Observably faster than naive Python for large wave sets (`N`) or small `dt`.
 
 ---
 
@@ -65,10 +65,10 @@ You will need:
    - **JAX Core**:
      ```bash
      # CPU-only JAX
-     pip install --upgrade "jax[cpu]"
-     # or GPU version (see https://github.com/google/jax#installation)
+     pip install --upgrade "jax[cpu]" # Not recommended
+     # or GPU version (see https://github.com/google/jax#installation) #recommended
      ```
-   - **mclsimpy** (used in the second JAX demo):
+   - **mclsimpy** (Simualtor for Numpy core):
      ```bash
      pip install git+https://github.com/NTNU-MCS/mclsimpy.git@master
      ```
@@ -142,7 +142,7 @@ You will need:
 
 ## Contributing
 
-Pull requests and issues are welcome! If you have new wave models, RL pipelines, or advanced adaptive controllers, we’d love to integrate them.
+Pull requests and issues are welcome! If you have new wave models, RL pipelines, or advanced adaptive controllers, I’d love to integrate them.
 
 ---
 
