@@ -161,8 +161,8 @@ if __name__ == "__main__":
     # Choose a wind velocity, fixed control gains, and simulation times
     num_dof = 3
     key = jax.random.PRNGKey(seed)
-    w = disturbance(jnp.array((7*(1/90), 18*(1/90)**0.5, 90)),key)
-    λ, k, p = 1., 1., 1.
+    w = disturbance(jnp.array((10*(1/90), 20*(1/90)**0.5, 270)),key)
+    λ, k, p = 0.1, 1., 1.
     T, dt = 400., 0.01
     ts = jnp.arange(0, T + dt, dt)
 

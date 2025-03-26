@@ -8,7 +8,7 @@ Date: 2025-02-13
 Contact: kmroen@outlook.com
 
 Description: 
-    This script defines the GridWaveEnvironment class which simulates boat dynamics 
+    This script defines the MC-Gym class which simulates boat dynamics 
     in a grid-based domain subject to wave loads, obstacles, and dynamic goals. 
     It leverages a 6-degree-of-freedom (6DOF) vessel simulator to compute boat motion 
     using RK4 integration and applies wave forces generated from a JONSWAP spectrum.
