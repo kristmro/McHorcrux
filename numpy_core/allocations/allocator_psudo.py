@@ -1,10 +1,6 @@
 from abc import ABC, abstractmethod
-from itertools import repeat
 import numpy as np
-import numpy as np
-from abc import ABC, abstractmethod
-from itertools import repeat
-from numpy_core.thruster.thruster import Thruster
+
 
 DOFS = 3  # Number of degrees of freedom
 

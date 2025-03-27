@@ -30,7 +30,12 @@ if args.use_x64:
 
 import jax                                          
 import jax.numpy as jnp                             
-from jax.example_libraries import optimizers             
+from jax.example_libraries import optimizers 
+from jax_core.thruster_allocation.psudo import (
+    create_thruster_config, allocate_with_config, saturate_rate, map_to_3dof,
+    get_default_config, DEFAULT_THRUST_MAX, DEFAULT_THRUST_MIN, DEFAULT_DT,
+    DEFAULT_N_DOT_MAX, DEFAULT_ALPHA_DOT_MAX
+)
 from jax_core.meta_adaptive_ctrl.dynamics import prior_3dof, prior_6dof                          
 from jax_core.utils import (tree_normsq, rk38_step, epoch,   
                    odeint_fixed_step, random_ragged_spline, spline,
@@ -252,84 +257,112 @@ if __name__ == "__main__":
                                  best_idx, step_idx)
 
     # META-TRAINING ##########################################################
-    def ode(z, t, meta_params, params, reference, prior=prior_3dof):
-        """TODO: docstring."""
-        x, A, c = z
+    # Create the thruster configuration once at the beginning
+    thruster_config = get_default_config()
+    def ode(z, t, meta_params, params, reference, thruster_config=thruster_config, prior=prior_3dof):
+        """ODE with adaptive control and thruster rate-limiting using prev control commands."""
+        x, A, c, u_prev, alpha_prev = z  # ← Now includes previous thruster states
+
         num_dof = x.size // 2
         q, dq = x[:num_dof], x[num_dof:]
         r = reference(t)
         dr = jax.jacfwd(reference)(t)
         ddr = jax.jacfwd(jax.jacfwd(reference))(t)
 
-        # Regressor features
+        # Regressor feature
         y = x
         for W, b in zip(meta_params['W'], meta_params['b']):
-            y = jnp.tanh(W@y + b)
+            y = jnp.tanh(W @ y + b)
 
-        # Parameterized control and adaptation gains
-        gains = jax.tree_util.tree_map(
-            lambda x: params_to_posdef(x),
-            meta_params['gains']
-        )
+        # Control gains
+        gains = jax.tree_util.tree_map(params_to_posdef, meta_params['gains'])
         Λ, K, P = gains['Λ'], gains['K'], gains['P']
 
-        # Auxiliary signals
+        # Tracking errors
         e, de = q - r, dq - dr
-        v, dv = dr - Λ@e, ddr - Λ@de
-        s = de + Λ@e
+        v = dr - Λ @ e
+        dv = ddr - Λ @ de
+        s = de + Λ @ e
 
-        # Controller and adaptation law
+        # Dynamics model and controller
         M, D, G, R = prior(q, dq)
-        f_hat = A@y
-        τ = M@dv + D@v + G@e - f_hat - K@s
+        f_hat = A @ y
+        τ = M @ dv + D @ v + G @ e - f_hat - K @ s
         u = jnp.linalg.solve(R, τ)
         dA = P @ jnp.outer(s, y)
 
-        # Apply control to "true" dynamics
+        # Thruster command computation with saturation - UPDATED
+        u_sat, alpha = allocate_with_config(
+            τ, 
+            thruster_config, 
+            DEFAULT_THRUST_MAX, 
+            DEFAULT_THRUST_MIN
+        )
+        
+        u_rate_sat, alpha_rate_sat = saturate_rate(
+            u_sat, alpha, u_prev, alpha_prev, 
+            DEFAULT_DT, DEFAULT_N_DOT_MAX, DEFAULT_ALPHA_DOT_MAX
+        )
+        
+        tau_aft = map_to_3dof(u_rate_sat, alpha_rate_sat, thruster_config)
+
+        # True dynamics with NN residual model
         f = x
         for W, b in zip(params['W'], params['b']):
-            f = jnp.tanh(W@f + b)
+            f = jnp.tanh(W @ f + b)
         f = params['A'] @ f
-        ddq = jax.scipy.linalg.solve(M, τ + f - D@dq - G@q, assume_a='pos')
+
+        ddq = jax.scipy.linalg.solve(M, tau_aft + f - D @ dq - G @ q, assume_a='pos')
         dx = jnp.concatenate((dq, ddq))
 
-        # Estimation loss
-        # chol_P = params_to_cholesky(meta_params['gains']['P'])
-        # f_error = f_hat - f
-        # loss_est = f_error@jax.scipy.linalg.cho_solve((chol_P, True),
-        #                                               f_error)
-
-        # Integrated cost terms
+        # Cost accumulation
         dc = jnp.array([
-            e@e + de@de,                # tracking loss
-            u@u,                        # control loss
-            (f_hat - f)@(f_hat - f),    # estimation loss
+            e @ e + de @ de,                # tracking loss
+            u @ u,                          # control effort
+            (f_hat - f) @ (f_hat - f),      # estimation loss
         ])
 
-        # Assemble derivatives
-        dz = (dx, dA, dc)
+        # These now just track the new rate-limited commands
+        du_prev = u_rate_sat - u_prev
+        dalpha_prev = alpha_rate_sat - alpha_prev
+
+        # Return full state derivatives
+        dz = (dx, dA, dc, du_prev, dalpha_prev)
         return dz
+
     # Simulate adaptive control loop on each model in the ensemble
     def ensemble_sim(meta_params, ensemble_params, reference, T, dt, ode=ode):
-        """TODO: docstring."""
-        # Initial conditions
-        r0 = reference(0.)
-        dr0 = jax.jacfwd(reference)(0.)
+        """Simulate adaptive control with thruster rate-limiting on each ensemble model."""
+
+        # Reference at time 0
+        r0 = reference(0.0)
+        dr0 = jax.jacfwd(reference)(0.0)
+
         num_dof = r0.size
         num_features = meta_params['W'][-1].shape[0]
         x0 = jnp.concatenate((r0, dr0))
         A0 = jnp.zeros((num_dof, num_features))
         c0 = jnp.zeros(3)
-        z0 = (x0, A0, c0)
 
-        # Integrate the adaptive control loop using the meta-model
-        # and EACH model in the ensemble along the same reference
+        # Define number of thrusters (from prior knowledge or shape)
+        n_thrusters = thruster_config['n_thrusters']  # Get from config
+        u_prev0 = jnp.zeros(n_thrusters)
+        alpha_prev0 = jnp.zeros(n_thrusters)
+
+        # Augmented initial state
+        z0 = (x0, A0, c0, u_prev0, alpha_prev0)
+
+        # Prepare partial ODE with fixed reference and thruster config
+        ode_partial = jax.tree_util.Partial(ode, reference=reference, thruster_config=thruster_config)
+
+        # Simulate for each model in ensemble using fixed-step integration
         in_axes = (None, None, None, None, None, None, 0)
-        ode = jax.tree_util.Partial(ode, reference=reference)
-        z, t = jax.vmap(odeint_fixed_step, in_axes)(ode, z0, 0., T, dt,
-                                                    meta_params,
-                                                    ensemble_params)
-        x, A, c = z
+        z, t = jax.vmap(odeint_fixed_step, in_axes)(
+            ode_partial, z0, 0.0, T, dt, meta_params, ensemble_params
+        )
+
+        # Unpack augmented state
+        x, A, c, u_prev, alpha_prev = z
         return t, x, A, c
 
     # Initialize meta-model parameters
