@@ -25,9 +25,17 @@ if args.use_x64:
 import jax                                      # noqa: E402
 import jax.numpy as jnp                         # noqa: E402
 from jax.experimental.ode import odeint         # noqa: E402
-from jax_core.utils import params_to_posdef              # noqa: E402
+from jax_core.utils import params_to_posdef      # noqa: E402
 from jax_core.meta_adaptive_ctrl.dynamics import prior_3dof, plant, disturbance  # noqa: E402
 from jax_core.simulator.waves.wave_load_jax_jit import wave_load  # noqa: E402
+from jax_core.thruster_allocation.psudo import (
+    create_thruster_config, allocate_with_config, saturate_rate, map_to_3dof,
+    get_default_config, DEFAULT_THRUST_MAX, DEFAULT_THRUST_MIN, DEFAULT_DT,
+    DEFAULT_N_DOT_MAX, DEFAULT_ALPHA_DOT_MAX
+) 
+
+# Import the reference filter functions.
+from jax_core.ref_gen.reference_filter import build_filter_matrices, simulate_filter_rk4
 
 # Uncomment this line to force using the CPU
 jax.config.update('jax_platform_name', 'cpu')  # TODO: keep or remove?
@@ -35,91 +43,67 @@ jax.config.update('jax_platform_name', 'cpu')  # TODO: keep or remove?
 #-----------------------------------------------------------------
 # Updated reference trajectory: Four-Corner Test (MC-GYM style)
 #-----------------------------------------------------------------
-def reference(t):
+
+# Precompute the filtered reference trajectory using the third-order filter.
+# We use the same simulation parameters as for the overall simulation.
+T_sim = 400.0       # Total simulation time in seconds.
+dt = 0.01           # Time step.
+steps = int(T_sim / dt)
+
+# Define the set points for the four-corner test.
+points = jnp.array([
+    [2.0, 2.0, 0.0],
+    [4.0, 2.0, 0.0],
+    [4.0, 4.0, 0.0],
+    [4.0, 4.0, -jnp.pi/4],
+    [2.0, 4.0, -jnp.pi/4],
+    [2.0, 2.0, 0.0]
+])
+num_points = points.shape[0]
+seg_steps = steps // num_points
+eta_r_traj = jnp.repeat(points, seg_steps, axis=0)
+# Pad with the final set point if needed.
+if eta_r_traj.shape[0] < steps:
+    pad = jnp.tile(points[-1][None, :], (steps - eta_r_traj.shape[0], 1))
+    eta_r_traj = jnp.concatenate([eta_r_traj, pad], axis=0)
+
+# Build the filter system matrices.
+Ad, Bd = build_filter_matrices(dt)
+# Set the initial state at the first set point (with zero velocity and acceleration).
+x0 = jnp.concatenate([points[0], jnp.zeros(6)])
+
+# Run the filter simulation (using RK4 integration) to get smooth reference trajectories.
+_, outputs = simulate_filter_rk4(x0, eta_r_traj, dt, Ad, Bd)
+eta_d_hist, eta_d_dot_hist, eta_d_ddot_hist = outputs
+
+def ref(t):
     """
-    Generate a reference trajectory for the boat using a four-corner test.
-
-    The trajectory transitions through the following set points:
-      [2.0, 2.0, 0.0] -> [4.0, 2.0, 0.0] -> [4.0, 4.0, 0.0] ->
-      [4.0, 4.0, -π/4] -> [2.0, 4.0, -π/4] -> [2.0, 2.0, 0.0]
-
-    The first 10 seconds hold the initial point; afterwards, the function
-    linearly interpolates between points over the simulation time (T = 400 seconds).
-
-    Args:
-        t: Time (seconds)
-        
-    Returns:
-        r: Reference position [x, y, φ] as a 1D array of shape (3,)
+    Four corner test trajectory using a reference filter.
+    
+    Given time t (in seconds), returns a tuple:
+      (r, dr, ddr)
+    where r is the filtered position, dr is the filtered velocity, and 
+    ddr is the filtered acceleration.
     """
-    T = 400.0  # Total simulation time
+    # Compute the corresponding index based on the time step.
+    index = jnp.minimum(jnp.floor_divide(t, dt).astype(jnp.int32), eta_d_hist.shape[0] - 1)
+    r = eta_d_hist[index]
+    dr = eta_d_dot_hist[index]
+    ddr = eta_d_ddot_hist[index]
+    return r, dr, ddr
 
-    # Convert the set points to a JAX array (shape: [6, 3])
-    points = jnp.array([
-        [2.0, 2.0, 0.0],
-        [4.0, 2.0, 0.0],
-        [4.0, 4.0, 0.0],
-        [4.0, 4.0, -jnp.pi/4],
-        [2.0, 4.0, -jnp.pi/4],
-        [2.0, 2.0, 0.0]
-    ])
-
-    # If t < 10.0, hold the initial point.
-    def hold_initial(_):
-        return points[0]
-
-    # If shifted time exceeds available time, return the last point.
-    def too_far(_):
-        return points[-1]
-
-    # Compute the segment index and perform linear interpolation.
-    def within_time(_):
-        shifted_t = t - 10.0
-        total_segment_time = T - 10.0
-        segment_duration = total_segment_time / 5.0  # 5 segments between 6 points
-        
-        seg_idx = jnp.floor(shifted_t / segment_duration).astype(jnp.int32)
-        # Ensure seg_idx does not exceed the maximum valid index (4)
-        seg_idx = jnp.minimum(seg_idx, 4)
-        
-        frac = (shifted_t - seg_idx * segment_duration) / segment_duration
-        
-        # Use dynamic indexing with keepdims=True, then squeeze to get a (3,) array.
-        p0 = jax.lax.dynamic_index_in_dim(points, seg_idx, axis=0, keepdims=True)
-        p1 = jax.lax.dynamic_index_in_dim(points, seg_idx + 1, axis=0, keepdims=True)
-        p0 = jnp.squeeze(p0, axis=0)
-        p1 = jnp.squeeze(p1, axis=0)
-        return (1 - frac) * p0 + frac * p1
-
-    def interpolate(_):
-        shifted_t = t - 10.0
-        total_segment_time = T - 10.0
-        return jax.lax.cond(shifted_t >= total_segment_time, too_far, within_time, operand=None)
-
-    return jax.lax.cond(t < 10.0, hold_initial, interpolate, operand=None)
-
-
-
-# The remainder of the code remains unchanged
-
+# The remainder of the simulation code remains unchanged.
 if __name__ == "__main__":
     print('Testing ... ', flush=True)
     start = time.time()
-    seed, M = 0, 10
+    seed, M = 0, 2
 
     # Sampled-time simulator
     @jax.tree_util.Partial(jax.jit, static_argnums=(3,))
     def simulate(ts, w, params, reference,
                  plant=plant, prior=prior_3dof, disturbance=wave_load):
         """TODO: docstring."""
-        # Required derivatives of the reference trajectory
-        def ref_derivatives(t):
-            ref_vel = jax.jacfwd(reference)
-            ref_acc = jax.jacfwd(ref_vel)
-            r = reference(t)
-            dr = ref_vel(t)
-            ddr = ref_acc(t)
-            return r, dr, ddr
+        thruster_config = get_default_config()
 
         # Adaptation law
         def adaptation_law(q, dq, r, dr, params=params):
@@ -145,8 +129,8 @@ if __name__ == "__main__":
             v, dv = dr - Λ @ e, ddr - Λ @ de
 
             # Control input and adaptation law
-            M, D, G, R = prior(q, dq)
-            τ = M @ dv + D @ v + G @ q - f_hat - K @ s
+            M_mat, D, G, R = prior(q, dq)
+            τ = M_mat @ dv + D @ v + G @ q - f_hat - K @ s
             u = jnp.linalg.solve(R, τ)
             return u, τ
 
@@ -160,11 +144,11 @@ if __name__ == "__main__":
 
         # Simulation loop
         def loop(carry, input_slice):
-            t_prev, q_prev, dq_prev, u_prev, A_prev, dA_prev = carry
+            t_prev, q_prev, dq_prev, u_prev, A_prev, dA_prev, alpha_prev, u_f_prev = carry
             t = input_slice
             qs, dqs = odeint(ode, (q_prev, dq_prev), jnp.array([t_prev, t]), u_prev)
             q, dq = qs[-1], dqs[-1]
-            r, dr, ddr = ref_derivatives(t)
+            r, dr, ddr = ref(t)
 
             # Integrate adaptation law via trapezoidal rule
             dA, y = adaptation_law(q, dq, r, dr)
@@ -174,21 +158,37 @@ if __name__ == "__main__":
             f_hat = A @ y
             u, τ = controller(q, dq, r, dr, ddr, f_hat)
 
-            carry = (t, q, dq, u, A, dA)
-            output_slice = (q, dq, u, τ, r, dr)
+            # Thrust saturation
+            u_sat, alpha = allocate_with_config(
+                u, 
+                thruster_config, 
+                DEFAULT_THRUST_MAX, 
+                DEFAULT_THRUST_MIN
+            )
+            
+            u_rate_sat, alpha_rate_sat = saturate_rate(
+                u_sat, alpha, u_f_prev, alpha_prev, 
+                DEFAULT_DT, DEFAULT_N_DOT_MAX, DEFAULT_ALPHA_DOT_MAX
+            )
+            
+            u_aft = map_to_3dof(u_rate_sat, alpha_rate_sat, thruster_config)
+                
+            carry = (t, q, dq, u_aft, A, dA, alpha, u_rate_sat)
+            output_slice = (q, dq, u_aft, τ, r, dr)
             return carry, output_slice
 
         # Initial conditions
         t0 = ts[0]
-        r0, dr0, ddr0 = ref_derivatives(t0)
+        r0, dr0, ddr0 = ref(t0)
         q0, dq0 = r0, dr0
         dA0, y0 = adaptation_law(q0, dq0, r0, dr0)
         A0 = jnp.zeros((q0.size, y0.size))
         f0 = A0 @ y0
         u0, τ0 = controller(q0, dq0, r0, dr0, ddr0, f0)
-
+        alpha0 = jnp.zeros(6)
+        u_f0 = jnp.zeros(6)
         # Run simulation loop
-        carry = (t0, q0, dq0, u0, A0, dA0)
+        carry = (t0, q0, dq0, u0, A0, dA0, alpha0, u_f0)
         carry, output = jax.lax.scan(loop, carry, ts[1:])
         q, dq, u, τ, r, dr = output
 
@@ -202,7 +202,7 @@ if __name__ == "__main__":
 
         return q, dq, u, τ, r, dr
 
-    # Choose a wind velocity, fixed control gains, and simulation times
+    # Choose wave parameters, fixed control gains, and simulation times
     num_dof = 3
     key = jax.random.PRNGKey(seed)
     w = disturbance(jnp.array((10*(1/90), 20*(1/90)**0.5, 270)), key)
@@ -228,13 +228,14 @@ if __name__ == "__main__":
         'K': params_to_posdef(train_results['controller']['K']),
         'P': params_to_posdef(train_results['controller']['P']),
     }
-    q, dq, u, τ, r, dr = simulate(ts, w, params, reference)
+    q, dq, u, τ, r, dr = simulate(ts, w, params, ref)
     e = np.concatenate((q - r, dq - dr), axis=-1)
     test_results['meta_adap_ctrl'] = {
         'params': params,
         't': ts, 'q': q, 'dq': dq, 'r': r, 'dr': dr,
         'u': u, 'τ': τ, 'e': e,
     }
+
     filename = os.path.join('data', 'training_results', 'seed={}_M={}.pkl'.format(seed, M))
     with open(filename, 'rb') as file:
         train_results = pickle.load(file)
@@ -245,7 +246,7 @@ if __name__ == "__main__":
     params['Λ'] = λ * jnp.eye(num_dof)
     params['K'] = k * jnp.eye(num_dof)
     params['P'] = p * jnp.eye(num_dof)
-    q, dq, u, τ, r, dr = simulate(ts, w, params, reference)
+    q, dq, u, τ, r, dr = simulate(ts, w, params, ref)
     e = np.concatenate((q - r, dq - dr), axis=-1)
     test_results['adaptive_ctrl'] = {
         'params': params,
@@ -253,8 +254,11 @@ if __name__ == "__main__":
         'u': u, 'τ': τ, 'e': e,
     }
 
+    # Save the test results.
+    output_path = os.path.join('data', 'testing_results','for_corner','ctrl_pen_1', 'seed=2_M=30' + '.pkl')
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
     # Save
-    with open('data/testing_results/test_results_single.pkl', 'wb') as file:
+    with open(output_path, 'wb') as file:
         pickle.dump(test_results, file)
 
     end = time.time()

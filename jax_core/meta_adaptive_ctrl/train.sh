@@ -4,15 +4,16 @@
 #         Autonomous Systems Lab (ASL), Stanford
 #         (GitHub: spenrich)
 
-for seed in {0..9}
+for seed in {2..9}
 do
-    for M in 2 5 10 20 30 40 50
+    for M in 30 40 50
     do
         echo "seed = $seed, M = $M"
 
         echo "Meta-ridge-regression:"
         # python train_lstsq.py $seed $M
 
-        python jax_core/meta_adaptive_ctrl/training.py $seed $M
+        python jax_core/meta_adaptive_ctrl/training.py $seed $M --use_x64
+
     done
 done

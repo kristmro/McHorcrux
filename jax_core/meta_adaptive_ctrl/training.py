@@ -75,8 +75,8 @@ hparams = {
         'learning_rate':     1e-2,       # step size for gradient optimization
         'num_steps':         500,        # maximum number of gradient steps
         'regularizer_l2':    1e-4,       # coefficient for L2-regularization
-        'regularizer_ctrl':  1e-3,       #
-        'regularizer_error': 0.,         #
+        'regularizer_ctrl':  1e-1,       # coefficient for control effort
+        'regularizer_error': 0.,         # coefficient for estimation error
         'T':                 5.,         # time horizon for each reference
         'dt':                1e-2,       # time step for numerical integration
         'num_refs':          10,         # reference trajectories to generate
@@ -556,7 +556,8 @@ if __name__ == "__main__":
         },
         'controller': best_meta_params['gains'],
     }
-    output_path = os.path.join('data', 'training_results', output_name + '.pkl')
+    output_path = os.path.join('data', 'training_results','ctrl_pen_1', output_name + '.pkl')
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, 'wb') as file:
         pickle.dump(results, file)
 

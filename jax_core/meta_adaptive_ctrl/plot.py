@@ -4,11 +4,11 @@ import numpy as np
 import os
 
 # Create figures directory if it doesn't exist
-os.makedirs('figures', exist_ok=True)
+os.makedirs('figures/four_corner/ctrl_pen_1', exist_ok=True)
 
 # Load the test results
 print("Loading test results...")
-with open('data/testing_results/test_results_single.pkl', 'rb') as file:
+with open('data/testing_results/for_corner/ctrl_pen_1/seed=2_M=30.pkl', 'rb') as file:
     results = pickle.load(file)
 
 # Check what keys are actually available in the results
@@ -61,7 +61,7 @@ for i in range(3):
 
 axes1[2].set_xlabel('Time (s)')
 plt.tight_layout()
-plt.savefig('figures/position_tracking.png', dpi=300)
+plt.savefig('figures/four_corner/ctrl_pen_1/position_tracking.png', dpi=300)
 
 # Continue with the rest of your plotting code using the dynamically determined methods
 # Figure 2: 2D trajectory plot
@@ -77,7 +77,7 @@ ax2.set_title('2D Trajectory')
 ax2.grid(True)
 ax2.legend()
 ax2.set_aspect('equal')
-plt.savefig('figures/trajectory_2d.png', dpi=300)
+plt.savefig('figures/four_corner/ctrl_pen_1/trajectory_2d.png', dpi=300)
 
 # Rest of your plotting code with the dynamic methods list...
 # Figure 3: Tracking errors
@@ -98,11 +98,11 @@ for i in range(3):
 
 axes3[2].set_xlabel('Time (s)')
 plt.tight_layout()
-plt.savefig('figures/tracking_errors.png', dpi=300)
+plt.savefig('figures/four_corner/ctrl_pen_1/tracking_errors.png', dpi=300)
 
 # Figure 4: Control efforts
 fig4, axes4 = plt.subplots(3, 1, figsize=(10, 12), sharex=True)
-fig4.suptitle('Control Efforts', fontsize=16)
+fig4.suptitle('Control Efforts cmd', fontsize=16)
 
 for i in range(3):
     ax = axes4[i]
@@ -117,7 +117,26 @@ for i in range(3):
 
 axes4[2].set_xlabel('Time (s)')
 plt.tight_layout()
-plt.savefig('figures/control_efforts.png', dpi=300)
+plt.savefig('figures/four_corner/ctrl_pen_1/control_efforts_cmd.png', dpi=300)
+
+# Figure 4: Control efforts
+fig4, axes4 = plt.subplots(3, 1, figsize=(10, 12), sharex=True)
+fig4.suptitle('Control Efforts body after saturation', fontsize=16)
+
+for i in range(3):
+    ax = axes4[i]
+    
+    for j, method in enumerate(methods):
+        ax.plot(t, results[method]['u'][:, i], colors[j], label=labels[j])
+    
+    ax.set_ylabel(f'u_{coord_labels[i]}')
+    ax.grid(True)
+    if i == 0:
+        ax.legend()
+
+axes4[2].set_xlabel('Time (s)')
+plt.tight_layout()
+plt.savefig('figures/four_corner/ctrl_pen_1/control_efforts_u_after.png', dpi=300)
 
 # Figure 5: RMS error comparison
 if len(methods) > 1:  # Only make comparison if we have multiple methods
@@ -136,7 +155,7 @@ if len(methods) > 1:  # Only make comparison if we have multiple methods
     ax5.set_xticklabels(coord_labels)
     ax5.legend()
     plt.tight_layout()
-    plt.savefig('figures/rms_error_comparison.png', dpi=300)
+    plt.savefig('figures/four_corner/ctrl_pen_1/rms_error_comparison.png', dpi=300)
 
-print("Plots saved to 'figures/' directory")
+print("Plots saved to 'figures/four_corner/ctrl_pen_1/' directory")
 plt.show()

@@ -40,7 +40,7 @@ jax.config.update('jax_platform_name', 'cpu')  # TODO: keep or remove?
 if __name__ == "__main__":
     print('Testing ... ', flush=True)
     start = time.time()
-    seed, M = 0, 2
+    seed, M = 1, 20
 
     # Sampled-time simulator
     @jax.tree_util.Partial(jax.jit, static_argnums=(3,))
@@ -197,7 +197,7 @@ if __name__ == "__main__":
 
     # Our method with meta-learned gains
     print('  ours (meta) ...', flush=True)
-    filename = os.path.join('data', 'training_results','seed={}_M={}.pkl'.format(seed, M))
+    filename = os.path.join('data', 'training_results','ctrl_pen_2','seed={}_M={}.pkl'.format(seed, M))
     with open(filename, 'rb') as file:
         train_results = pickle.load(file)
     params = {
@@ -214,10 +214,6 @@ if __name__ == "__main__":
         't': ts, 'q': q, 'dq': dq, 'r': r, 'dr': dr,
         'u': u, 'τ': τ, 'e': e,
     }
-    filename = os.path.join(
-        'data','training_results',
-        'seed={}_M={}.pkl'.format(seed, M)
-    )
     with open(filename, 'rb') as file:
         train_results = pickle.load(file)
     params = {
@@ -234,9 +230,10 @@ if __name__ == "__main__":
         't': ts, 'q': q, 'dq': dq, 'r': r, 'dr': dr,
         'u': u, 'τ': τ, 'e': e,
     }
-
+    output_path = os.path.join('data', 'testing_results','ctrl_pen_2', 'seed=1_M=20' + '.pkl')
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
     # Save
-    with open('data/testing_results/test_results_single.pkl', 'wb') as file:
+    with open(output_path, 'wb') as file:
         pickle.dump(test_results, file)
 
     end = time.time()
