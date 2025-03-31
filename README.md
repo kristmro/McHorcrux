@@ -119,7 +119,7 @@ You will need:
 ├── demos/
 │   └── demo_jax/
 │       ├── notebook_demo_jax.py
-│       ├── notebook_demo_jax_mclsimpy.py
+│       ├── notebook_demo_mclsimpy.py
 │       └── ...
 ├── data/                   # Potential training_data/ & testing_results/
 ├── figures/                # Output for plots
