@@ -20,7 +20,7 @@ This directory contains **high-performance**, **JAX-based** simulation and meta-
 
 4. **In-Progress Gym**  
    - A “gym-like” environment exists but is not a primary focus here. JAX’s function-oriented style makes a purely object-oriented gym class less ideal.  
-   - Instead, we rely on direct ODE simulations (coupled with neural nets, wave loads, and adaptation laws) for offline training. If you need a standard `env.step()` interface, see [`gym` or `mc_gym_jax.py`](./simulator/gym) for a prototype that may require further refinement.
+   - Instead, we rely on direct ODE simulations (coupled with neural nets, wave loads, and adaptation laws) for offline training. If you need a standard `env.step()` interface, see [`gym_jax`](./gym) for a prototype that may require further refinement.
 
 ---
 
