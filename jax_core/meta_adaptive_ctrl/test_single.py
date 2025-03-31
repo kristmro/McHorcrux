@@ -40,7 +40,7 @@ jax.config.update('jax_platform_name', 'cpu')  # TODO: keep or remove?
 if __name__ == "__main__":
     print('Testing ... ', flush=True)
     start = time.time()
-    seed, M = 0, 10
+    seed, M = 0, 2
 
     # Sampled-time simulator
     @jax.tree_util.Partial(jax.jit, static_argnums=(3,))
@@ -114,7 +114,7 @@ if __name__ == "__main__":
 
             # Thuster saturationD
             u_sat, alpha = allocate_with_config(
-                τ, 
+                u, 
                 thruster_config, 
                 DEFAULT_THRUST_MAX, 
                 DEFAULT_THRUST_MIN
@@ -125,11 +125,11 @@ if __name__ == "__main__":
                 DEFAULT_DT, DEFAULT_N_DOT_MAX, DEFAULT_ALPHA_DOT_MAX
             )
             
-            tau_aft = map_to_3dof(u_rate_sat, alpha_rate_sat, thruster_config)
+            u_aft = map_to_3dof(u_rate_sat, alpha_rate_sat, thruster_config)
                 
 
-            carry = (t, q, dq, u, A, dA, alpha, u_rate_sat)
-            output_slice = (q, dq, u, tau_aft, r, dr)
+            carry = (t, q, dq, u_aft, A, dA, alpha, u_rate_sat)
+            output_slice = (q, dq, u_aft, τ, r, dr)
             return carry, output_slice
 
         # Initial conditions
