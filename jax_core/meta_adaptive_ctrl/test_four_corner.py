@@ -44,13 +44,9 @@ jax.config.update('jax_platform_name', 'cpu')  # TODO: keep or remove?
 # Updated reference trajectory: Four-Corner Test (MC-GYM style)
 #-----------------------------------------------------------------
 
-# Precompute the filtered reference trajectory using the third-order filter.
-# We use the same simulation parameters as for the overall simulation.
-T_sim = 400.0       # Total simulation time in seconds.
-dt = 0.01           # Time step.
-steps = int(T_sim / dt)
-
-# Define the set points for the four-corner test.
+# --- Simulation setup ---
+dt = 0.01
+# Define the set points for the trajectory.
 points = jnp.array([
     [2.0, 2.0, 0.0],
     [4.0, 2.0, 0.0],
@@ -59,22 +55,63 @@ points = jnp.array([
     [2.0, 4.0, -jnp.pi/4],
     [2.0, 2.0, 0.0]
 ])
-num_points = points.shape[0]
-seg_steps = steps // num_points
-eta_r_traj = jnp.repeat(points, seg_steps, axis=0)
-# Pad with the final set point if needed.
-if eta_r_traj.shape[0] < steps:
-    pad = jnp.tile(points[-1][None, :], (steps - eta_r_traj.shape[0], 1))
-    eta_r_traj = jnp.concatenate([eta_r_traj, pad], axis=0)
 
-# Build the filter system matrices.
+# --- Define segments with specific durations and types ---
+segments = [
+    # 1. [2.0,2.0,0.0] for 5 seconds.
+    {'type': 'dwell', 'point': jnp.array([2.0, 2.0, 0.0]), 'time': 5.0},
+    # 2. [2.0,2.0,0.0] to [4.0,2.0,0.0] for 30 seconds.
+    {'type': 'transition', 'start': jnp.array([2.0, 2.0, 0.0]), 'end': jnp.array([4.0, 2.0, 0.0]), 'time': 30.0},
+    # 3. [4.0,2.0,0.0] for 5 seconds.
+    {'type': 'dwell', 'point': jnp.array([4.0, 2.0, 0.0]), 'time': 15.0},
+    # 4. [4.0,2.0,0.0] to [4.0,4.0,0.0] for 40 seconds.
+    {'type': 'transition', 'start': jnp.array([4.0, 2.0, 0.0]), 'end': jnp.array([4.0, 4.0, 0.0]), 'time': 40.0},
+    # 5. [4.0,4.0,0.0] for 5 seconds.
+    {'type': 'dwell', 'point': jnp.array([4.0, 4.0, 0.0]), 'time': 23.0},
+    # 6. [4.0,4.0,0.0] to [4.0,4.0,-jnp.pi/4] for 15 seconds.
+    {'type': 'transition', 'start': jnp.array([4.0, 4.0, 0.0]), 'end': jnp.array([4.0, 4.0, -jnp.pi/4]), 'time': 15.0},
+    # 7. [4.0,4.0,-jnp.pi/4] for 5 seconds.
+    {'type': 'dwell', 'point': jnp.array([4.0, 4.0, -jnp.pi/4]), 'time': 17.0},
+    # 8. [4.0,4.0,-jnp.pi/4] to [2.0,4.0,-jnp.pi/4] for 40 seconds.
+    {'type': 'transition', 'start': jnp.array([4.0, 4.0, -jnp.pi/4]), 'end': jnp.array([2.0, 4.0, -jnp.pi/4]), 'time': 40.0},
+    # 9. [2.0,4.0,-jnp.pi/4] for 5 seconds.
+    {'type': 'dwell', 'point': jnp.array([2.0, 4.0, -jnp.pi/4]), 'time': 15.0},
+    # 10. [2.0,4.0,-jnp.pi/4] to [2.0,2.0,0.0] for 50 seconds.
+    {'type': 'transition', 'start': jnp.array([2.0, 4.0, -jnp.pi/4]), 'end': jnp.array([2.0, 2.0, 0.0]), 'time': 50.0},
+    # 11. [2.0,2.0,0.0] for 5 seconds.
+    {'type': 'dwell', 'point': jnp.array([2.0, 2.0, 0.0]), 'time': 20.0},
+]
+
+# --- Generate the reference trajectory based on these segments ---
+traj_segments = []
+for seg in segments:
+    seg_steps = int(seg['time'] / dt)
+    if seg['type'] == 'dwell':
+        # Repeat the point for the dwell duration.
+        traj_segments.append(jnp.tile(seg['point'][None, :], (seg_steps, 1)))
+    elif seg['type'] == 'transition':
+        # Linearly interpolate from start to end.
+        t = jnp.linspace(0, 1, seg_steps)
+        transition = (1 - t[:, None]) * seg['start'] + t[:, None] * seg['end']
+        traj_segments.append(transition)
+
+# Concatenate all segments.
+eta_r_traj = jnp.concatenate(traj_segments, axis=0)
+
+# --- Update simulation parameters based on trajectory length ---
+steps = eta_r_traj.shape[0]
+T_sim = steps * dt
+
+
+# Build filter system matrices.
 Ad, Bd = build_filter_matrices(dt)
 # Set the initial state at the first set point (with zero velocity and acceleration).
 x0 = jnp.concatenate([points[0], jnp.zeros(6)])
 
-# Run the filter simulation (using RK4 integration) to get smooth reference trajectories.
-_, outputs = simulate_filter_rk4(x0, eta_r_traj, dt, Ad, Bd)
+# Run the simulation using the RK4 integrator.
+final_state, outputs = simulate_filter_rk4(x0, eta_r_traj, dt, Ad, Bd)
 eta_d_hist, eta_d_dot_hist, eta_d_ddot_hist = outputs
+
 
 def ref(t):
     """
@@ -96,11 +133,11 @@ def ref(t):
 if __name__ == "__main__":
     print('Testing ... ', flush=True)
     start = time.time()
-    seed, M = 1, 20
+    seed, M, ctrl_pen = 0, 5, 3
 
     # Sampled-time simulator
     @jax.tree_util.Partial(jax.jit, static_argnums=(3,))
-    def simulate(ts, w, params, reference,
+    def simulate(ts, w, params, ref=ref,
                  plant=plant, prior=prior_3dof, disturbance=wave_load):
         """TODO: docstring."""
         thruster_config = get_default_config()
@@ -218,7 +255,7 @@ if __name__ == "__main__":
 
     # Our method with meta-learned gains
     print('  ours (meta) ...', flush=True)
-    filename = os.path.join('data', 'training_results', 'ctrl_pen_2','seed={}_M={}.pkl'.format(seed, M))
+    filename = os.path.join('data', 'training_results', 'ctrl_pen_{}'.format(ctrl_pen),'seed={}_M={}.pkl'.format(seed, M))
     with open(filename, 'rb') as file:
         train_results = pickle.load(file)
     params = {
@@ -255,7 +292,7 @@ if __name__ == "__main__":
     }
 
     # Save the test results.
-    output_path = os.path.join('data', 'testing_results','four_corner','ctrl_pen_2','seed={}_M={}.pkl'.format(seed, M))
+    output_path = os.path.join('data', 'testing_results','four_corner','ctrl_pen_{}'.format(ctrl_pen),'seed={}_M={}.pkl'.format(seed, M))
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     # Save
     with open(output_path, 'wb') as file:
