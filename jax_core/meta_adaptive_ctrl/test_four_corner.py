@@ -44,7 +44,7 @@ jax.config.update('jax_platform_name', 'cpu')  # TODO: keep or remove?
 # Updated reference trajectory: Four-Corner Test (MC-GYM style)
 #-----------------------------------------------------------------
 
-# --- Simulation setup ---
+# --- dt ---
 dt = 0.01
 # Define the set points for the trajectory.
 points = jnp.array([
@@ -133,7 +133,7 @@ def ref(t):
 if __name__ == "__main__":
     print('Testing ... ', flush=True)
     start = time.time()
-    seed, M, ctrl_pen = 0, 5, 3
+    seed, M, ctrl_pen, act = 3, 2, 3, 'on'
 
     # Sampled-time simulator
     @jax.tree_util.Partial(jax.jit, static_argnums=(3,))
@@ -210,8 +210,8 @@ if __name__ == "__main__":
             
             u_aft = map_to_3dof(u_rate_sat, alpha_rate_sat, thruster_config)
                 
-            carry = (t, q, dq, u_aft, A, dA, alpha, u_rate_sat)
-            output_slice = (q, dq, u_aft, τ, r, dr)
+            carry = (t, q, dq, u, A, dA, alpha, u_rate_sat)
+            output_slice = (q, dq, u, τ, r, dr)
             return carry, output_slice
 
         # Initial conditions
@@ -243,9 +243,10 @@ if __name__ == "__main__":
     num_dof = 3
     key = jax.random.PRNGKey(seed)
     w = disturbance(jnp.array((6*(1/90), 16*(1/90)**0.5, 0)), key)
-    λ, k, p = 0.1, 1., 1.
-    T, dt = 400., 0.01
+    λ, k, p = 1.0, 10.0, 10.0
+    T, dt = T_sim, dt
     ts = jnp.arange(0, T + dt, dt)
+
 
     # Simulate tracking for each method
     test_results = {
@@ -255,7 +256,7 @@ if __name__ == "__main__":
 
     # Our method with meta-learned gains
     print('  ours (meta) ...', flush=True)
-    filename = os.path.join('data', 'training_results', 'ctrl_pen_{}'.format(ctrl_pen),'seed={}_M={}.pkl'.format(seed, M))
+    filename = os.path.join('data', 'training_results','act_{}'.format(act), 'ctrl_pen_{}'.format(ctrl_pen),'seed={}_M={}.pkl'.format(seed, M))
     with open(filename, 'rb') as file:
         train_results = pickle.load(file)
     params = {
@@ -292,7 +293,7 @@ if __name__ == "__main__":
     }
 
     # Save the test results.
-    output_path = os.path.join('data', 'testing_results','four_corner','ctrl_pen_{}'.format(ctrl_pen),'seed={}_M={}.pkl'.format(seed, M))
+    output_path = os.path.join('data', 'testing_results','train_act_{}'.format(act),'four_corner','ctrl_pen_{}'.format(ctrl_pen),'seed={}_M={}.pkl'.format(seed, M))
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     # Save
     with open(output_path, 'wb') as file:

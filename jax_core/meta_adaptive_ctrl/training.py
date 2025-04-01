@@ -1,9 +1,7 @@
 """
-TODO description.
-
-Author: Spencer M. Richards
-        Autonomous Systems Lab (ASL), Stanford
-        (GitHub: spenrich)
+TODO: docstring.
+author:  Kristian Magnus Roen adapted from {Richards, S. M. and Azizan, N. and Slotine, J.-J. E. and Pavone, M.}
+https://github.com/StanfordASL/Adaptive-Control-Oriented-Meta-Learning/tree/master
 """
 
 from tqdm.auto import tqdm
@@ -318,7 +316,7 @@ if __name__ == "__main__":
         # Cost accumulation
         dc = jnp.array([
             e @ e + de @ de,                # tracking loss
-            u @ u,                          # control effort
+            u_aft @ u_aft,                  # control effort
             (f_hat - f) @ (f_hat - f),      # estimation loss
         ])
 
@@ -384,11 +382,11 @@ if __name__ == "__main__":
         'b': [0.1*jax.random.normal(subkeys_b[i], (shapes[i][0],))
               for i in range(num_hlayers)],
         'gains': {  # vectorized control and adaptation gains
-            'Λ': 0.1*jax.random.normal(subkeys_gains[0],
+            'Λ': 0.5*jax.random.normal(subkeys_gains[0],
                                        ((num_dof*(num_dof + 1)) // 2,)),
-            'K': 0.1*jax.random.normal(subkeys_gains[1],
+            'K': 3.0*jax.random.normal(subkeys_gains[1],
                                        ((num_dof*(num_dof + 1)) // 2,)),
-            'P': 0.1*jax.random.normal(subkeys_gains[2],
+            'P': 3.0*jax.random.normal(subkeys_gains[2],
                                        ((num_dof*(num_dof + 1)) // 2,)),
         }
     }
@@ -546,6 +544,11 @@ if __name__ == "__main__":
 
     # Save hyperparameters, ensemble, model, and controller
     output_name = "seed={:d}_M={:d}".format(hparams['seed'], num_models)
+    import numpy as np
+
+    ctrl_pen = int(-np.log10(hparams['meta']['regularizer_ctrl']))
+    act= 'on'
+
     results = {
         'best_step_idx': best_idx,
         'hparams': hparams,
@@ -556,7 +559,7 @@ if __name__ == "__main__":
         },
         'controller': best_meta_params['gains'],
     }
-    output_path = os.path.join('data', 'training_results','ctrl_pen_3', output_name + '.pkl')
+    output_path = os.path.join('data', 'training_results','act_{}'.format(act),'ctrl_pen_{}'.format(ctrl_pen), output_name + '.pkl')
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, 'wb') as file:
         pickle.dump(results, file)
