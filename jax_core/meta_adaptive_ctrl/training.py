@@ -75,7 +75,7 @@ hparams = {
         'learning_rate':     1e-2,       # step size for gradient optimization
         'num_steps':         500,        # maximum number of gradient steps
         'regularizer_l2':    1e-4,       # coefficient for L2-regularization
-        'regularizer_ctrl':  1e-1,       # coefficient for control effort
+        'regularizer_ctrl':  1e-3,       # coefficient for control effort
         'regularizer_error': 0.,         # coefficient for estimation error
         'T':                 5.,         # time horizon for each reference
         'dt':                1e-2,       # time step for numerical integration
@@ -280,20 +280,20 @@ if __name__ == "__main__":
 
         # Tracking errors
         e, de = q - r, dq - dr
-        v = dr - Λ @ e
-        dv = ddr - Λ @ de
-        s = de + Λ @ e
+        v = dr - Λ@e
+        dv = ddr - Λ@de
+        s = de + Λ@e
 
-        # Dynamics model and controller
+        # Dynamics model and controller and adaptation law
         M, D, G, R = prior(q, dq)
-        f_hat = A @ y
-        τ = M @ dv + D @ v + G @ e - f_hat - K @ s
+        f_hat = A@y
+        τ = M@dv + D@v + G@e - f_hat - K@s
         u = jnp.linalg.solve(R, τ)
         dA = P @ jnp.outer(s, y)
 
         # Thruster command computation with saturation - UPDATED
         u_sat, alpha = allocate_with_config(
-            τ, 
+            u, 
             thruster_config, 
             DEFAULT_THRUST_MAX, 
             DEFAULT_THRUST_MIN
@@ -304,7 +304,7 @@ if __name__ == "__main__":
             DEFAULT_DT, DEFAULT_N_DOT_MAX, DEFAULT_ALPHA_DOT_MAX
         )
         
-        tau_aft = map_to_3dof(u_rate_sat, alpha_rate_sat, thruster_config)
+        u_aft = map_to_3dof(u_rate_sat, alpha_rate_sat, thruster_config)
 
         # True dynamics with NN residual model
         f = x
@@ -312,7 +312,7 @@ if __name__ == "__main__":
             f = jnp.tanh(W @ f + b)
         f = params['A'] @ f
 
-        ddq = jax.scipy.linalg.solve(M, tau_aft + f - D @ dq - G @ q, assume_a='pos')
+        ddq = jax.scipy.linalg.solve(M, R@u_aft + f - D @ dq - G @ q, assume_a='pos')
         dx = jnp.concatenate((dq, ddq))
 
         # Cost accumulation
@@ -510,7 +510,7 @@ if __name__ == "__main__":
         opt_state = update_opt(idx, grads, opt_state)
         return opt_state, aux
 
-    # Pre-compile before training
+    # Pre-compile before training (ALSO called warmup for JAX compilation)
     print('META-TRAINING: Pre-compiling ... ', end='', flush=True)
     dt = hparams['meta']['dt']
     T = hparams['meta']['T']
@@ -556,7 +556,7 @@ if __name__ == "__main__":
         },
         'controller': best_meta_params['gains'],
     }
-    output_path = os.path.join('data', 'training_results','ctrl_pen_1', output_name + '.pkl')
+    output_path = os.path.join('data', 'training_results','ctrl_pen_3', output_name + '.pkl')
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, 'wb') as file:
         pickle.dump(results, file)
