@@ -92,7 +92,7 @@ if __name__ == "__main__":
     # DATA PROCESSING ########################################################
     # Load raw data and arrange in samples of the form
     # `(t, x, u, t_next, x_next)` for each trajectory, where `x := (q,dq)`
-    with open('data/training_data/training_data_N_15_hs_7.pkl', 'rb') as file:
+    with open('data/training_data/training_data_wave0_N15_hs7.pkl', 'rb') as file:
         raw = pickle.load(file)
     num_dof = raw['q'].shape[-1]       # number of degrees of freedom
     num_traj = raw['q'].shape[0]       # total number of raw trajectories
@@ -316,7 +316,7 @@ if __name__ == "__main__":
         # Cost accumulation
         dc = jnp.array([
             e @ e + de @ de,                # tracking loss
-            u_aft @ u_aft,                  # control effort
+            u @ u,                          # control effort
             (f_hat - f) @ (f_hat - f),      # estimation loss
         ])
 
@@ -382,11 +382,11 @@ if __name__ == "__main__":
         'b': [0.1*jax.random.normal(subkeys_b[i], (shapes[i][0],))
               for i in range(num_hlayers)],
         'gains': {  # vectorized control and adaptation gains
-            'Λ': 0.5*jax.random.normal(subkeys_gains[0],
+            'Λ': 1.0*jax.random.normal(subkeys_gains[0],
                                        ((num_dof*(num_dof + 1)) // 2,)),
-            'K': 3.0*jax.random.normal(subkeys_gains[1],
+            'K': 0.8*jax.random.normal(subkeys_gains[1],
                                        ((num_dof*(num_dof + 1)) // 2,)),
-            'P': 3.0*jax.random.normal(subkeys_gains[2],
+            'P': 0.8*jax.random.normal(subkeys_gains[2],
                                        ((num_dof*(num_dof + 1)) // 2,)),
         }
     }
