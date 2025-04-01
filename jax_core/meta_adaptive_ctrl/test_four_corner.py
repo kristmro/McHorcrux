@@ -96,7 +96,7 @@ def ref(t):
 if __name__ == "__main__":
     print('Testing ... ', flush=True)
     start = time.time()
-    seed, M = 0, 2
+    seed, M = 1, 20
 
     # Sampled-time simulator
     @jax.tree_util.Partial(jax.jit, static_argnums=(3,))
@@ -205,7 +205,7 @@ if __name__ == "__main__":
     # Choose wave parameters, fixed control gains, and simulation times
     num_dof = 3
     key = jax.random.PRNGKey(seed)
-    w = disturbance(jnp.array((10*(1/90), 20*(1/90)**0.5, 270)), key)
+    w = disturbance(jnp.array((6*(1/90), 16*(1/90)**0.5, 0)), key)
     λ, k, p = 0.1, 1., 1.
     T, dt = 400., 0.01
     ts = jnp.arange(0, T + dt, dt)
@@ -218,7 +218,7 @@ if __name__ == "__main__":
 
     # Our method with meta-learned gains
     print('  ours (meta) ...', flush=True)
-    filename = os.path.join('data', 'training_results', 'seed={}_M={}.pkl'.format(seed, M))
+    filename = os.path.join('data', 'training_results', 'ctrl_pen_2','seed={}_M={}.pkl'.format(seed, M))
     with open(filename, 'rb') as file:
         train_results = pickle.load(file)
     params = {
@@ -228,6 +228,7 @@ if __name__ == "__main__":
         'K': params_to_posdef(train_results['controller']['K']),
         'P': params_to_posdef(train_results['controller']['P']),
     }
+    print('  params:', params)
     q, dq, u, τ, r, dr = simulate(ts, w, params, ref)
     e = np.concatenate((q - r, dq - dr), axis=-1)
     test_results['meta_adap_ctrl'] = {
@@ -236,7 +237,6 @@ if __name__ == "__main__":
         'u': u, 'τ': τ, 'e': e,
     }
 
-    filename = os.path.join('data', 'training_results', 'seed={}_M={}.pkl'.format(seed, M))
     with open(filename, 'rb') as file:
         train_results = pickle.load(file)
     params = {
@@ -255,7 +255,7 @@ if __name__ == "__main__":
     }
 
     # Save the test results.
-    output_path = os.path.join('data', 'testing_results','for_corner','ctrl_pen_1', 'seed=2_M=30' + '.pkl')
+    output_path = os.path.join('data', 'testing_results','four_corner','ctrl_pen_2','seed={}_M={}.pkl'.format(seed, M))
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     # Save
     with open(output_path, 'wb') as file:
