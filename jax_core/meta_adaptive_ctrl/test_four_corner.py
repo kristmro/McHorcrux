@@ -133,7 +133,7 @@ def ref(t):
 if __name__ == "__main__":
     print('Testing ... ', flush=True)
     start = time.time()
-    seed, M, ctrl_pen, act = 5, 2, 1, 'on'
+    seed, M, ctrl_pen, act, test_act = 5, 2, 1, 'on', 'off'
 
     # Sampled-time simulator
     @jax.tree_util.Partial(jax.jit, static_argnums=(3,))
@@ -210,8 +210,8 @@ if __name__ == "__main__":
             
             u_aft = map_to_3dof(u_rate_sat, alpha_rate_sat, thruster_config)
                 
-            carry = (t, q, dq, u_aft, A, dA, alpha, u_rate_sat)
-            output_slice = (q, dq, u_aft, τ, r, dr)
+            carry = (t, q, dq, u, A, dA, alpha, u_rate_sat)
+            output_slice = (q, dq, u, τ, r, dr)
             return carry, output_slice
 
         # Initial conditions
@@ -293,7 +293,7 @@ if __name__ == "__main__":
     }
 
     # Save the test results.
-    output_path = os.path.join('data', 'testing_results','train_act_{}'.format(act),'four_corner','ctrl_pen_{}'.format(ctrl_pen),'seed={}_M={}.pkl'.format(seed, M))
+    output_path = os.path.join('data', 'testing_results','train_act_{}'.format(act),'four_corner','test_act_{}'.format(test_act),'ctrl_pen_{}'.format(ctrl_pen),'seed={}_M={}.pkl'.format(seed, M))
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     # Save
     with open(output_path, 'wb') as file:
