@@ -62,8 +62,8 @@ hparams = {
         'train_frac':     0.75,  # fraction of each trajectory for training
         'batch_frac':     0.25,  # fraction of training data per batch
         'regularizer_l2': 1e-4,  # coefficient for L2-regularization
-        'learning_rate':  1e-2,  # step size for gradient optimization
-        'num_epochs':     1000,  # number of epochs
+        'learning_rate':  1e-4,  # step size for gradient optimization
+        'num_epochs':     1500,  # number of epochs
     },
     # For meta-training
     'meta': {
@@ -71,11 +71,11 @@ hparams = {
         'hdim':              32,         # number of hidden units per layer
         'train_frac':        0.75,       #
         'learning_rate':     1e-3,       # step size for gradient optimization
-        'num_steps':         1500,        # maximum number of gradient steps
+        'num_steps':         1000,        # maximum number of gradient steps
         'regularizer_l2':    1e-4,       # coefficient for L2-regularization
         'regularizer_ctrl':  1e-1,       # coefficient for control effort
         'regularizer_error': 0.,         # coefficient for estimation error
-        'T':                 5.,         # time horizon for each reference
+        'T':                 15.,         # time horizon for each reference
         'dt':                1e-2,       # time step for numerical integration
         'num_refs':          10,         # reference trajectories to generate
         'num_knots':         6,          # knot points per reference spline
@@ -310,7 +310,7 @@ if __name__ == "__main__":
             f = jnp.tanh(W @ f + b)
         f = params['A'] @ f
 
-        ddq = jax.scipy.linalg.solve(M, R@u_aft + f - D @ dq - G @ q, assume_a='pos')
+        ddq = jax.scipy.linalg.solve(M, R@u + f - D @ dq - G @ q, assume_a='pos')
         dx = jnp.concatenate((dq, ddq))
 
         # Cost accumulation
@@ -547,7 +547,7 @@ if __name__ == "__main__":
     import numpy as np
 
     ctrl_pen = int(-np.log10(hparams['meta']['regularizer_ctrl']))
-    act= 'on'
+    act= 'off'
 
     results = {
         'best_step_idx': best_idx,

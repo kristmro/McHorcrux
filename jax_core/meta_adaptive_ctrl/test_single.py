@@ -40,7 +40,7 @@ jax.config.update('jax_platform_name', 'cpu')  # TODO: keep or remove?
 if __name__ == "__main__":
     print('Testing ... ', flush=True)
     start = time.time()
-    seed, M = 1, 20
+    seed, M, ctrl_pen, act, test_act = 5, 10, 1, 'off', 'on'
 
     # Sampled-time simulator
     @jax.tree_util.Partial(jax.jit, static_argnums=(3,))
@@ -184,8 +184,8 @@ if __name__ == "__main__":
     # Choose a wind velocity, fixed control gains, and simulation times
     num_dof = 3
     key = jax.random.PRNGKey(seed)
-    w = disturbance(jnp.array((10*(1/90), 20*(1/90)**0.5, 270)),key)
-    λ, k, p = 0.1, 1., 1.
+    w = disturbance(jnp.array((10*(1/90), 20*(1/90)**0.5, 0)),key)
+    λ, k, p = 1.0, 10.0, 10.0
     T, dt = 400., 0.01
     ts = jnp.arange(0, T + dt, dt)
 
@@ -197,7 +197,7 @@ if __name__ == "__main__":
 
     # Our method with meta-learned gains
     print('  ours (meta) ...', flush=True)
-    filename = os.path.join('data', 'training_results','ctrl_pen_2','seed={}_M={}.pkl'.format(seed, M))
+    filename = os.path.join('data', 'training_results','act_{}'.format(act),'ctrl_pen_{}'.format(ctrl_pen),'seed={}_M={}.pkl'.format(seed, M))
     with open(filename, 'rb') as file:
         train_results = pickle.load(file)
     params = {
@@ -230,7 +230,7 @@ if __name__ == "__main__":
         't': ts, 'q': q, 'dq': dq, 'r': r, 'dr': dr,
         'u': u, 'τ': τ, 'e': e,
     }
-    output_path = os.path.join('data', 'testing_results','ctrl_pen_2', 'seed=1_M=20' + '.pkl')
+    output_path = os.path.join('data', 'testing_results','train_act_{}'.format(act),'loop','test_act_{}'.format(test_act),'ctrl_pen_{}'.format(ctrl_pen),'seed={}_M={}.pkl'.format(seed, M))
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     # Save
     with open(output_path, 'wb') as file:

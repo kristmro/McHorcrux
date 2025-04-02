@@ -4,9 +4,9 @@
 #         Autonomous Systems Lab (ASL), Stanford
 #         (GitHub: spenrich)
 
-for seed in {5..9}
+for seed in {6..9}
 do
-    for M in 2 5 10 20 30 40 50
+    for M in 10 20 30 40 50
     do
         echo "seed = $seed, M = $M"
 

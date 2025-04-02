@@ -14,7 +14,7 @@ from jax_core.utils import rk4_step
 # rk4_step = jax.jit(rk4_step_impl, static_argnums=(2,))
 
 # --- Filter matrices and dynamics ---
-def build_filter_matrices(dt, omega=jnp.array([0.8, 0.4, 0.6])):
+def build_filter_matrices(dt, omega=jnp.array([0.8, 0.35, 0.5])):
     """
     Build the system matrices (Ad, Bd) for the third-order filter.
     The state is defined as x = [η, η_dot, η_ddot].
@@ -102,7 +102,7 @@ segments = [
     # 9. [2.0,4.0,-jnp.pi/4] for 5 seconds.
     {'type': 'dwell', 'point': jnp.array([2.0, 4.0, -jnp.pi/4]), 'time': 15.0},
     # 10. [2.0,4.0,-jnp.pi/4] to [2.0,2.0,0.0] for 50 seconds.
-    {'type': 'transition', 'start': jnp.array([2.0, 4.0, -jnp.pi/4]), 'end': jnp.array([2.0, 2.0, 0.0]), 'time': 60.0},
+    {'type': 'transition', 'start': jnp.array([2.0, 4.0, -jnp.pi/4]), 'end': jnp.array([2.0, 2.0, 0.0]), 'time': 70.0},
     # 11. [2.0,2.0,0.0] for 5 seconds.
     {'type': 'dwell', 'point': jnp.array([2.0, 2.0, 0.0]), 'time': 20.0},
 ]

@@ -4,9 +4,9 @@ import numpy as np
 import os
 
 
-which_test = 'four_corner'
-#which_test = 'loop'
-seed, M, ctrl_pen, act, test_act = 5,2,1, 'on','off'
+#which_test = 'four_corner'
+which_test = 'loop'
+seed, M, ctrl_pen, act, test_act = 5,10,1, 'off','on'
 
 
 
