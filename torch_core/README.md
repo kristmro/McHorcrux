@@ -2,6 +2,8 @@
 
 This directory provides a **PyTorch-based** simulation and control pipeline for the **C/S Arctic Drillship (CSAD)** model from Marine Cybernetics (NTNU). It replicates the logic of the NumPy-based MC-Gym but uses **PyTorch** to enable end-to-end differentiability and potentially gradient-based learning or optimization methods.
 
+Example of use with meta-learning: [*Online-Meta-Adaptive-Control*](https://github.com/GuanyaShi/Online-Meta-Adaptive-Control/tree/main)
+
 ---
 
 ## Key Features
