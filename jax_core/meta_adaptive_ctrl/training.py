@@ -70,10 +70,10 @@ hparams = {
         'num_hlayers':       2,          # number of hidden layers
         'hdim':              32,         # number of hidden units per layer
         'train_frac':        0.75,       #
-        'learning_rate':     1e-2,       # step size for gradient optimization
-        'num_steps':         500,        # maximum number of gradient steps
+        'learning_rate':     1e-3,       # step size for gradient optimization
+        'num_steps':         1500,        # maximum number of gradient steps
         'regularizer_l2':    1e-4,       # coefficient for L2-regularization
-        'regularizer_ctrl':  1e-3,       # coefficient for control effort
+        'regularizer_ctrl':  1e-1,       # coefficient for control effort
         'regularizer_error': 0.,         # coefficient for estimation error
         'T':                 5.,         # time horizon for each reference
         'dt':                1e-2,       # time step for numerical integration
@@ -382,11 +382,11 @@ if __name__ == "__main__":
         'b': [0.1*jax.random.normal(subkeys_b[i], (shapes[i][0],))
               for i in range(num_hlayers)],
         'gains': {  # vectorized control and adaptation gains
-            'Λ': 1.0*jax.random.normal(subkeys_gains[0],
+            'Λ': 0.5*jax.random.normal(subkeys_gains[0],
                                        ((num_dof*(num_dof + 1)) // 2,)),
-            'K': 0.8*jax.random.normal(subkeys_gains[1],
+            'K': 0.5*jax.random.normal(subkeys_gains[1],
                                        ((num_dof*(num_dof + 1)) // 2,)),
-            'P': 0.8*jax.random.normal(subkeys_gains[2],
+            'P': 0.5*jax.random.normal(subkeys_gains[2],
                                        ((num_dof*(num_dof + 1)) // 2,)),
         }
     }
