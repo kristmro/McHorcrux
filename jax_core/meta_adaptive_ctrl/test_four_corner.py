@@ -133,7 +133,7 @@ def ref(t):
 if __name__ == "__main__":
     print('Testing ... ', flush=True)
     start = time.time()
-    seed, M, ctrl_pen, act, test_act = 5, 10, 1, 'off', 'on'
+    seed, M, ctrl_pen, act, test_act = 7, 20, 1, 'off', 'on'
 
     # Sampled-time simulator
     @jax.tree_util.Partial(jax.jit, static_argnums=(3,))
@@ -255,7 +255,7 @@ if __name__ == "__main__":
     }
 
     # Our method with meta-learned gains
-    print('  ours (meta) ...', flush=True)
+    print('meta trained adaptive ctrl ...', flush=True)
     filename = os.path.join('data', 'training_results','act_{}'.format(act), 'ctrl_pen_{}'.format(ctrl_pen),'seed={}_M={}.pkl'.format(seed, M))
     with open(filename, 'rb') as file:
         train_results = pickle.load(file)
@@ -281,6 +281,7 @@ if __name__ == "__main__":
         'W': train_results['model']['W'],
         'b': train_results['model']['b'],
     }
+    print('Adaptive ctrl self tuned...', flush=True)
     params['Λ'] = λ * jnp.eye(num_dof)
     params['K'] = k * jnp.eye(num_dof)
     params['P'] = p * jnp.eye(num_dof)
