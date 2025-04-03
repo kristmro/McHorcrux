@@ -6,7 +6,7 @@
 
 for seed in {6..9}
 do
-    for M in 10 20 30 40 50
+    for M in 20 30 40 50
     do
         echo "seed = $seed, M = $M"
 
