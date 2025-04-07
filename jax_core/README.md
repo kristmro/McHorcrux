@@ -8,7 +8,7 @@ This directory contains **high-performance**, **JAX-based** simulation and meta-
 
 1. **Rooted in Adaptive-Control-Oriented Meta-Learning**  
    - Code inherits ideas from Spencer Richards’s work on meta-learning for control, which views the adaptation problem as a **bi-level** optimization.  
-   - Instead of typical “regression-oriented” meta-learning, the approach is **control-oriented**: we optimize neural-network-based features (and possibly controller gains) **directly for robust closed-loop performance**, not just to fit input/output data.
+   - Instead of typical “regression-oriented” meta-learning, the approach is **control-oriented**: we optimize neural-network-based features and the controller gains **directly for robust closed-loop performance**, not just to fit input/output data.
 
 2. **JAX for Speed & Differentiability**  
    - Vessel dynamics, wave loads, and training loops are written in **JAX** to exploit **XLA** compilation, automatic differentiation, vectorization (`vmap`), and parallel scanning (`scan`).  
