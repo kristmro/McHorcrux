@@ -15,7 +15,7 @@ This directory contains **high-performance**, **JAX-based** simulation and meta-
    - Large-scale or repetitive simulations can thus run orders of magnitude faster than naive Python or NumPy – especially beneficial when meta-optimizing controllers over many reference trajectories.
 
 3. **Maritime Adaptation**  
-   - While Spencer’s original setup used a planar rotorcraft, we **refactored** many of those ideas for a **marine vessel** (the C/S Arctic Drillship).  
+   - While Spencer’s original setup used a planar rotorcraft, I have **refactored** many of those ideas for a **marine vessel** (the C/S Arctic Drillship and hopefully C/S Voyager).  
    - The external forces come from wave models (`wave_load_jax_jit.py`), referencing advanced JONSWAP spectra. The vessel’s dynamic equations are carefully structured as a JAX-friendly, fully differentiable system.
 
 4. **In-Progress Gym**  
