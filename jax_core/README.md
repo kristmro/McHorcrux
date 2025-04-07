@@ -1,6 +1,6 @@
 # JAX Core
 
-This directory contains **high-performance**, **JAX-based** simulation and meta-adaptive control code for the **C/S Arctic Drillship** (originally inspired by a rotorcraft example in Spencer Richards’s [*Adaptive-Control-Oriented Meta-Learning*](https://arxiv.org/pdf/2103.04490). The code has been **adapted for maritime vessel dynamics**, preserving the key principle that a **fully differentiable** and **highly efficient** simulator can greatly accelerate training advanced controllers offline.
+This directory contains **high-performance**, **JAX-based** simulation and meta-adaptive control code for the **C/S Arctic Drillship** (Greatly inspired by a rotorcraft example in Spencer Richards’s [*Adaptive-Control-Oriented Meta-Learning*](https://arxiv.org/pdf/2103.04490)) The code has been **adapted for maritime vessel dynamics**, preserving the key principle that a **fully differentiable** and **highly efficient** simulator can greatly accelerate training advanced controllers offline.
 
 ---
 
