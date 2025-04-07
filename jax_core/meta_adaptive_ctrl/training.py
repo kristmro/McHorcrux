@@ -376,18 +376,15 @@ if __name__ == "__main__":
     subkeys_gains = subkeys[-3:]
     meta_params = {
         # hidden layer weights
-        'W': [0.1*jax.random.normal(subkeys_W[i], shapes[i])
+        'W': [0.1 * jax.random.normal(subkeys_W[i], shapes[i])
               for i in range(num_hlayers)],
         # hidden layer biases
-        'b': [0.1*jax.random.normal(subkeys_b[i], (shapes[i][0],))
+        'b': [0.1 * jax.random.normal(subkeys_b[i], (shapes[i][0],))
               for i in range(num_hlayers)],
-        'gains': {  # vectorized control and adaptation gains
-            'Λ': 0.5*jax.random.normal(subkeys_gains[0],
-                                       ((num_dof*(num_dof + 1)) // 2,)),
-            'K': 0.5*jax.random.normal(subkeys_gains[1],
-                                       ((num_dof*(num_dof + 1)) // 2,)),
-            'P': 0.5*jax.random.normal(subkeys_gains[2],
-                                       ((num_dof*(num_dof + 1)) // 2,)),
+        'gains': {
+            'Λ': jnp.diag(0.5 * jax.random.normal(subkeys_gains[0], (num_dof,))),
+            'K': jnp.diag(0.5 * jax.random.normal(subkeys_gains[1], (num_dof,))),
+            'P': jnp.diag(0.5 * jax.random.normal(subkeys_gains[2], (num_dof,))),
         }
     }
     # Initialize spline coefficients for each reference trajectory
