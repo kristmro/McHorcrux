@@ -10,13 +10,13 @@ from jax_core.simulator.waves.wave_load_jax_jit import init_wave_load, WaveLoad
 # --------------------------------------------------------------------------
 # Load vessel parameters and set up initial state (functional style)
 # --------------------------------------------------------------------------
+config_file = "/home/kmroen/miniconda3/envs/tensor/lib/python3.9/site-packages/mclsimpy/vessel_data/CSAD/vessel_json.json"
+params_jit = load_csad_parameters(config_file)
+M = six2threeDOF(params_jit["M"])
+D = six2threeDOF(params_jit["D"])
+G = six2threeDOF(params_jit["G"])
 
-def prior_3dof(q, dq):
-    config_file = "/home/kmroen/miniconda3/envs/tensor/lib/python3.9/site-packages/mclsimpy/vessel_data/CSAD/vessel_json.json"
-    params_jit = load_csad_parameters(config_file)
-    M = six2threeDOF(params_jit["M"])
-    D = six2threeDOF(params_jit["D"])
-    G = six2threeDOF(params_jit["G"])
+def prior_3dof(q, dq, M=M, D=D, G=G):
     return M, D, G, Rz(q[-1])
 
 def prior_6dof(q, dq):
