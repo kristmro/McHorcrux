@@ -5,7 +5,7 @@ Implements differentiable wave load calculations for vessel simulations in JAX.
 This version is refactored so that all runtime data (used in JIT/vmap) is stored
 in a PyTree-friendly dataclass. The mathematical meaning is preserved.
 
-Author: Kristian Magnus Roen (modified)
+Author: Kristian Magnus Roen (modified from Jan Erik Hygen's Numpy version)
 Date:   2025-03-20
 """
 
@@ -95,13 +95,16 @@ def init_wave_load(wave_amps, freqs, eps, angles, config_file,
     k = freqs**2 / g
     if not deep_water:
         k = wave_number(freqs, depth, g)
+        if depth < 0 or depth==None:
+            raise ValueError("Depth must be positive and defined.")
+        
     
     # Difference-frequency and phase matrices
     W = freqs[:, None] - freqs
     P = eps[:, None]   - eps
     
     # Compute full QTF matrices
-    Q, qtf_angles_out = full_qtf_6dof(qtf_angles,
+    Q, _ = full_qtf_6dof(qtf_angles,
                                       qtf_freqs,
                                       jnp.asarray(vessel_params["driftfrc"]["amp"])[:, :, :, 0],
                                       freqs,
@@ -119,7 +122,7 @@ def init_wave_load(wave_amps, freqs, eps, angles, config_file,
         eps=eps,
         angles=angles,
         depth=depth,
-        qtf_angles=qtf_angles_out,
+        qtf_angles=qtf_angles,
         qtf_freqs=qtf_freqs,
         g=g,
         k=k,
@@ -201,7 +204,8 @@ def full_qtf_6dof(qtf_headings, qtf_freqs, qtfs, wave_freqs,
             angle_count = qtfs_dof.shape[1]
             def single_angle(h):
                 data = qtfs_dof[:, h]
-                return jnp.interp(new_freqs, orig_freqs, data, left=data[0], right=0.0)
+                # FIX: use data[-1] for the right boundary to match NumPy behavior
+                return jnp.interp(new_freqs, orig_freqs, data, left=data[0], right=data[-1])
             return jax.vmap(single_angle)(jnp.arange(angle_count)).T
         Qdiag = jax.vmap(interp_freq, in_axes=(0, None, None))(qtfs, qtf_freqs, wave_freqs)
         if qtf_interp_angles:
@@ -254,23 +258,49 @@ def relative_incident_angle(angles, heading):
     return to_positive_angle(rel_angle)
 
 def rao_interp(forceRAOamp, forceRAOphase, qtf_angles, rel_angle):
-    rel_angle_deg = jnp.rad2deg(rel_angle)
-    floor_deg = (jnp.floor(rel_angle_deg / 10) * 10) % 360
-    qtf_deg = jnp.rad2deg(qtf_angles)
+    """
+    Interpolate the force RAO amplitude and phase from the provided arrays,
+    mimicking the NumPy-based _rao_interp behavior.
     
-    index_lb = jnp.argmin(jnp.abs(qtf_deg - floor_deg[:, None]), axis=1)
-    index_ub = (index_lb + 1) % len(qtf_angles)
-    freq_ind = jnp.arange(forceRAOamp.shape[1])
+    Parameters:
+      forceRAOamp: jnp.ndarray with shape (6, N, M) — force RAO amplitudes.
+      forceRAOphase: jnp.ndarray with shape (6, N, M) — force RAO phases.
+      qtf_angles: jnp.ndarray with shape (M,) — the heading angles at which RAOs are defined.
+      rel_angle: jnp.ndarray with shape (N,) — the relative incident wave angles.
     
-    rao_amp_lb   = forceRAOamp[:, freq_ind, index_lb]
+    Returns:
+      Tuple (rao_amp, rao_phase) each with shape (6, N)
+    """
+    index_lb = jnp.argmin(jnp.abs(jnp.rad2deg(qtf_angles) - jnp.floor(jnp.rad2deg(rel_angle[:, None])/10)*10), axis=1)
+    
+    # Instead of modulo, use a conditional: if index_lb is not the last index, use index_lb+1, otherwise use index_lb.
+    M = qtf_angles.shape[0]
+    index_ub = jnp.where(index_lb < (M - 1), index_lb + 1, 0)
+
+    
+    # For gathering, create a frequency index array.
+    freq_ind = jnp.arange(forceRAOamp.shape[1])  # shape (N,)
+    
+    # In our NumPy version, we use advanced indexing.
+    # In this JAX version we assume that forceRAOamp is shaped (6, N, M).
+    # We use "fancy" indexing here:
+    rao_amp_lb   = forceRAOamp[:, freq_ind, index_lb]       # Expected shape: (6, N)
     rao_phase_lb = forceRAOphase[:, freq_ind, index_lb]
     rao_amp_ub   = forceRAOamp[:, freq_ind, index_ub]
     rao_phase_ub = forceRAOphase[:, freq_ind, index_ub]
     
-    theta1 = qtf_angles[index_lb]
-    theta2 = qtf_angles[index_ub]
-    scale = pipi(rel_angle - theta1) / pipi(theta2 - theta1)
+    # Get the bracket angles.
+    theta1 = qtf_angles[index_lb]  # Shape (N,)
+    theta2 = qtf_angles[index_ub]  # Shape (N,)
     
+    # Compute the denominator and protect against division by zero.
+    delta = pipi(theta2 - theta1)  # The difference between the two bracket angles.
+    # If delta is zero, set scale to 0, else compute normally.
+    scale = jnp.where(delta == 0, 0.0, pipi(rel_angle - theta1) / delta)  # Shape (N,)
+    # Expand scale to match shape (6, N)
+    scale = scale[None, :]  # Now (1, N), which will broadcast with (6, N)
+    
+    # Finally, linearly interpolate.
     rao_amp   = rao_amp_lb + (rao_amp_ub - rao_amp_lb) * scale
     rao_phase = rao_phase_lb + (rao_phase_ub - rao_phase_lb) * scale
     return rao_amp, rao_phase

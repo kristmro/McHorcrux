@@ -16,7 +16,7 @@ from jax.flatten_util import ravel_pytree
 # ---------------------------------------------------------------------------
 def to_positive_angle(angle):
     """
-    Force angle into [0, 2*pi).
+    Force angle from *[-pi,pi) into [0, 2*pi).
     """
     return jnp.where(angle < 0, angle + 2*jnp.pi, angle)
 
