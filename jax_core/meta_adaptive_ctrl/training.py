@@ -4,56 +4,60 @@ author:  Kristian Magnus Roen adapted from {Richards, S. M. and Azizan, N. and S
 https://github.com/StanfordASL/Adaptive-Control-Oriented-Meta-Learning/tree/master
 """
 
-from tqdm.auto import tqdm
+import argparse
+import os
 import pickle
 import time
 import warnings
-from math import pi, inf
-import os
-import argparse
+from math import inf, pi
 
-# Parse command line arguments
-parser = argparse.ArgumentParser()
-parser.add_argument('seed', help='seed for pseudo-random number generation',
-                    type=int)
-parser.add_argument('M', help='number of trajectories to sub-sample',
-                    type=int)
-parser.add_argument('--use_x64', help='use 64-bit precision',
-                    action='store_true')
-args = parser.parse_args()
+import jax
+import jax.numpy as jnp
+from jax.example_libraries import optimizers
 
-# Set precision
-if args.use_x64:
-    os.environ['JAX_ENABLE_X64'] = 'True'
+from tqdm.auto import tqdm
+from functools import partial
 
-import jax                                          
-import jax.numpy as jnp                             
-from jax.example_libraries import optimizers 
+# # Parse command line arguments
+# parser = argparse.ArgumentParser()
+# parser.add_argument('seed', help='seed for pseudo-random number generation',
+#                     type=int)
+# parser.add_argument('M', help='number of trajectories to sub-sample',
+#                     type=int)
+# parser.add_argument('--use_x64', help='use 64-bit precision',
+#                     action='store_true')
+# args = parser.parse_args()
+
+# # Set precision
+# if args.use_x64:
+#     jax.config.update('jax_enable_x64', True)
+
 from jax_core.thruster_allocation.psudo import (
     create_thruster_config, allocate_with_config, saturate_rate, map_to_3dof,
     get_default_config, DEFAULT_THRUST_MAX, DEFAULT_THRUST_MIN, DEFAULT_DT,
     DEFAULT_N_DOT_MAX, DEFAULT_ALPHA_DOT_MAX
 )
-from jax_core.meta_adaptive_ctrl.dynamics import prior_3dof, prior_6dof                          
-from jax_core.utils import (tree_normsq, rk38_step, epoch,   
-                   odeint_fixed_step, random_ragged_spline, spline,
-                   params_to_cholesky, params_to_posdef)
+from jax_core.meta_adaptive_ctrl.dynamics import prior_3dof as prior                        
+from jax_core.utils import (odeint_fixed_step, rk38_step, epoch,   
+                   params_to_cholesky, params_to_posdef, tree_normsq,
+                   random_ragged_spline, spline)
 # Just before printing "ENSEMBLE TRAINING: Pre-compiling ...", add something like:
 if any(device.platform == 'gpu' for device in jax.devices()):
     print("JAX has GPU access")
 else:
     print("JAX is using CPU")
 
-
-
 # Initialize PRNG key
-key = jax.random.PRNGKey(args.seed)
-
+argsseed = 0
+key = jax.random.PRNGKey(argsseed)
+argsM=5
+argsuse_x64 = True
+jax.config.update('jax_enable_x64', True)
 # Hyperparameters
 hparams = {
-    'seed':        args.seed,     #
-    'use_x64':     args.use_x64,  #
-    'num_subtraj': args.M,        # number of trajectories to sub-sample
+    'seed':        argsseed,     #
+    'use_x64':     argsuse_x64,  #
+    'num_subtraj': argsM,        # number of trajectories to sub-sample
 
     # For training the model ensemble
     'ensemble': {
@@ -62,29 +66,29 @@ hparams = {
         'train_frac':     0.75,  # fraction of each trajectory for training
         'batch_frac':     0.25,  # fraction of training data per batch
         'regularizer_l2': 1e-4,  # coefficient for L2-regularization
-        'learning_rate':  1e-4,  # step size for gradient optimization
-        'num_epochs':     2000,  # number of epochs
+        'learning_rate':  1e-2,  # step size for gradient optimization
+        'num_epochs':     1000,  # number of epochs
     },
     # For meta-training
     'meta': {
         'num_hlayers':       2,          # number of hidden layers
         'hdim':              32,         # number of hidden units per layer
         'train_frac':        0.75,       #
-        'learning_rate':     1e-3,       # step size for gradient optimization
-        'num_steps':         1000,        # maximum number of gradient steps
+        'learning_rate':     1e-1,       # step size for gradient optimization
+        'num_steps':         500,        # maximum number of gradient steps
         'regularizer_l2':    1e-4,       # coefficient for L2-regularization
-        'regularizer_ctrl':  1e-1,       # coefficient for control effort
-        'regularizer_error': 0.,         # coefficient for estimation error
+        'regularizer_ctrl':  1e-2,       #
+        'regularizer_error': 0.,         #
         'T':                 15.,         # time horizon for each reference
         'dt':                1e-2,       # time step for numerical integration
-        'num_refs':          10,         # reference trajectories to generate
+        'num_refs':          15,         # reference trajectories to generate
         'num_knots':         6,          # knot points per reference spline
         'poly_orders':       (9, 9, 6),  # spline orders for each DOF
         'deriv_orders':      (4, 4, 2),  # smoothness objective for each DOF
-        'min_step':          (-0.3, -0.3, -pi/12),    #
-        'max_step':          (0.3, 0.3, pi/12),       #
-        'min_ref':           (-inf, -inf, -pi/2),  #
-        'max_ref':           (inf, inf, pi/2),     #
+        'min_step':          (-0.4, -0.4, -pi/8),    #
+        'max_step':          (0.4, 0.4, pi/8),       #
+        'min_ref':           (-inf, -inf, -pi/3),  #
+        'max_ref':           (inf, inf, pi/3),     #
     },
 }
 
@@ -92,7 +96,7 @@ if __name__ == "__main__":
     # DATA PROCESSING ########################################################
     # Load raw data and arrange in samples of the form
     # `(t, x, u, t_next, x_next)` for each trajectory, where `x := (q,dq)`
-    with open('data/training_data/training_data_wave0_N15_hs7.pkl', 'rb') as file:
+    with open('data/training_data/training_data_N15_hs7.pkl', 'rb') as file:
         raw = pickle.load(file)
     num_dof = raw['q'].shape[-1]       # number of degrees of freedom
     num_traj = raw['q'].shape[0]       # total number of raw trajectories
@@ -118,10 +122,11 @@ if __name__ == "__main__":
         lambda a: jnp.take(a, hparams['subtraj_idx'], axis=0),
         data
     )
+
     # MODEL ENSEMBLE TRAINING ################################################
     # Loss function along a trajectory
-    def ode(x, t, u, params, prior=prior_3dof):
-        """TODO: docstring."""
+    def ode(x, t, u, params, prior=prior):
+        """Compute the system state derivative."""
         num_dof = x.size // 2
         q, dq = x[:num_dof], x[num_dof:]
         M, D, G, R = prior(q, dq)
@@ -137,7 +142,7 @@ if __name__ == "__main__":
         return dx
 
     def loss(params, regularizer, t, x, u, t_next, x_next, ode=ode):
-        """TODO: docstring."""
+        """Compute the loss over one transition tuple."""
         num_samples = t.size
         dt = t_next - t
         x_next_est = jax.vmap(rk38_step, (None, 0, 0, 0, 0, None))(
@@ -145,23 +150,23 @@ if __name__ == "__main__":
         )
         loss = (jnp.sum((x_next_est - x_next)**2)
                 + regularizer*tree_normsq(params)) / num_samples
-        return loss    
+        return loss
 
     # Parallel updates for each model in the ensemble
-    @jax.tree_util.Partial(jax.jit, static_argnums=(4, 5))
-    @jax.tree_util.Partial(jax.vmap, in_axes=(None, 0, None, 0, None, None))
+    @partial(jax.jit, static_argnums=(4, 5))
+    @partial(jax.vmap, in_axes=(None, 0, None, 0, None, None))
     def step(idx, opt_state, regularizer, batch, get_params, update_opt,
              loss=loss):
-        """TODO: docstring."""
+        """Do a gradient step."""
         params = get_params(opt_state)
         grads = jax.grad(loss, argnums=0)(params, regularizer, **batch)
         opt_state = update_opt(idx, grads, opt_state)
         return opt_state
-    
+
     @jax.jit
     @jax.vmap
     def update_best_ensemble(old_params, old_loss, new_params, batch):
-        """TODO: docstring."""
+        """Extract the best models in an ensemble."""
         new_loss = loss(new_params, 0., **batch)  # do not regularize
         best_params = jax.tree_util.tree_map(
             lambda x, y: jnp.where(new_loss < old_loss, x, y),
@@ -170,7 +175,7 @@ if __name__ == "__main__":
         )
         best_loss = jnp.where(new_loss < old_loss, new_loss, old_loss)
         return best_params, best_loss, new_loss
-    
+
     # Initialize model parameters
     num_models = hparams['num_subtraj']  # one model per trajectory
     num_hlayers = hparams['ensemble']['num_hlayers']
@@ -185,14 +190,15 @@ if __name__ == "__main__":
     key_A = subkeys[-1]
     ensemble = {
         # hidden layer weights
-        'W': [0.1*jax.random.normal(keys_W[i], (num_models, *shapes[i]))
+        'W': [5.0*jax.random.normal(keys_W[i], (num_models, *shapes[i]))
               for i in range(num_hlayers)],
         # hidden layer biases
-        'b': [0.1*jax.random.normal(keys_b[i], (num_models, shapes[i][0]))
+        'b': [5.0*jax.random.normal(keys_b[i], (num_models, shapes[i][0]))
               for i in range(num_hlayers)],
         # last layer weights
-        'A': 0.1*jax.random.normal(key_A, (num_models, num_dof, hdim))
+        'A': 5.0*jax.random.normal(key_A, (num_models, num_dof, hdim))
     }
+
     # Shuffle samples in time along each trajectory, then split each
     # trajectory into training and validation sets (i.e., for each model)
     key, *subkeys = jax.random.split(key, 1 + num_models)
@@ -238,7 +244,8 @@ if __name__ == "__main__":
     print('done ({:.2f} s)!'.format(end - start))
 
     # Do gradient descent
-    for _ in tqdm(range(hparams['ensemble']['num_epochs'])):
+    pbar = tqdm(range(hparams['ensemble']['num_epochs']))
+    for epoch_idx in pbar:
         key, subkey = jax.random.split(key, 2)
         for batch in epoch(subkey, ensemble_train_data, batch_size,
                            batch_axis=1, ragged=False):
@@ -251,116 +258,90 @@ if __name__ == "__main__":
                 best_ensemble, best_losses, new_ensemble, batch
             )
             step_idx += 1
-            best_idx = jnp.where(old_losses == best_losses,
-                                 best_idx, step_idx)
+            best_idx = jnp.where(old_losses == best_losses, best_idx, step_idx)
+        pbar.set_postfix({
+            "loss": float(jnp.mean(valid_losses)),
+            "best_idx": best_idx.tolist()
+        })
 
     # META-TRAINING ##########################################################
-    # Create the thruster configuration once at the beginning
-    thruster_config = get_default_config()
-    def ode(z, t, meta_params, params, reference, thruster_config=thruster_config, prior=prior_3dof):
-        """ODE with adaptive control and thruster rate-limiting using prev control commands."""
-        x, A, c, u_prev, alpha_prev = z  # ← Now includes previous thruster states
-
+    def ode(z, t, meta_params, params, reference, prior=prior):
+        """Compute the state derivative of the adaptive closed-loop system."""
+        x, A, c = z
+        # jax.debug.print('z: {z}', z=z)
         num_dof = x.size // 2
         q, dq = x[:num_dof], x[num_dof:]
         r = reference(t)
         dr = jax.jacfwd(reference)(t)
         ddr = jax.jacfwd(jax.jacfwd(reference))(t)
-
-        # Regressor feature
+        ddr = jnp.nan_to_num(ddr, nan=0.) 
+        # jax.debug.print('r: {r}', r=r)
+        # jax.debug.print('dr: {dr}', dr=dr)
+        # jax.debug.print('ddr: {ddr}', ddr=ddr)
+        # Regressor features
         y = x
         for W, b in zip(meta_params['W'], meta_params['b']):
-            y = jnp.tanh(W @ y + b)
+            y = jnp.tanh(W@y + b)
 
-        # Control gains
-        gains = jax.tree_util.tree_map(params_to_posdef, meta_params['gains'])
+        # Parameterized control and adaptation gains
+        gains = jax.tree_util.tree_map(
+            lambda x: params_to_posdef(x),
+            meta_params['gains']
+        )
         Λ, K, P = gains['Λ'], gains['K'], gains['P']
 
-        # Tracking errors
+        # Auxiliary signals
         e, de = q - r, dq - dr
-        v = dr - Λ@e
-        dv = ddr - Λ@de
+        v, dv = dr - Λ@e, ddr - Λ@de
         s = de + Λ@e
 
-        # Dynamics model and controller and adaptation law
+        # Controller and adaptation law
         M, D, G, R = prior(q, dq)
         f_hat = A@y
         τ = M@dv + D@v + G@e - f_hat - K@s
         u = jnp.linalg.solve(R, τ)
         dA = P @ jnp.outer(s, y)
-
-        # Thruster command computation with saturation - UPDATED
-        u_sat, alpha = allocate_with_config(
-            u, 
-            thruster_config, 
-            DEFAULT_THRUST_MAX, 
-            DEFAULT_THRUST_MIN
-        )
-        
-        u_rate_sat, alpha_rate_sat = saturate_rate(
-            u_sat, alpha, u_prev, alpha_prev, 
-            DEFAULT_DT, DEFAULT_N_DOT_MAX, DEFAULT_ALPHA_DOT_MAX
-        )
-        
-        u_aft = map_to_3dof(u_rate_sat, alpha_rate_sat, thruster_config)
-
-        # True dynamics with NN residual model
+        # Apply control to "true" dynamics
         f = x
         for W, b in zip(params['W'], params['b']):
-            f = jnp.tanh(W @ f + b)
+            f = jnp.tanh(W@f + b)
         f = params['A'] @ f
-
-        ddq = jax.scipy.linalg.solve(M, R@u + f - D @ dq - G @ q, assume_a='pos')
+        ddq = jax.scipy.linalg.solve(M, τ + f - D@dq - G@q, assume_a='pos')
         dx = jnp.concatenate((dq, ddq))
-
-        # Cost accumulation
+        
+        # Integrated cost terms
         dc = jnp.array([
-            e @ e + de @ de,                # tracking loss
-            u @ u,                          # control effort
-            (f_hat - f) @ (f_hat - f),      # estimation loss
+            e@e + de@de,                # tracking loss
+            u@u,                        # control loss
+            (f_hat - f)@(f_hat - f),    # estimation loss
         ])
 
-        # These now just track the new rate-limited commands
-        du_prev = u_rate_sat - u_prev
-        dalpha_prev = alpha_rate_sat - alpha_prev
-
-        # Return full state derivatives
-        dz = (dx, dA, dc, du_prev, dalpha_prev)
+        # Assemble derivatives
+        dz = (dx, dA, dc)
         return dz
 
     # Simulate adaptive control loop on each model in the ensemble
     def ensemble_sim(meta_params, ensemble_params, reference, T, dt, ode=ode):
-        """Simulate adaptive control with thruster rate-limiting on each ensemble model."""
-
-        # Reference at time 0
-        r0 = reference(0.0)
-        dr0 = jax.jacfwd(reference)(0.0)
-
+        """TODO: docstring."""
+        # Initial conditions
+        r0 = reference(0.)
+        dr0 = jax.jacfwd(reference)(0.)
         num_dof = r0.size
         num_features = meta_params['W'][-1].shape[0]
         x0 = jnp.concatenate((r0, dr0))
         A0 = jnp.zeros((num_dof, num_features))
         c0 = jnp.zeros(3)
+        z0 = (x0, A0, c0)
 
-        # Define number of thrusters (from prior knowledge or shape)
-        n_thrusters = thruster_config['n_thrusters']  # Get from config
-        u_prev0 = jnp.zeros(n_thrusters)
-        alpha_prev0 = jnp.zeros(n_thrusters)
-
-        # Augmented initial state
-        z0 = (x0, A0, c0, u_prev0, alpha_prev0)
-
-        # Prepare partial ODE with fixed reference and thruster config
-        ode_partial = jax.tree_util.Partial(ode, reference=reference, thruster_config=thruster_config)
-
-        # Simulate for each model in ensemble using fixed-step integration
+        # Integrate the adaptive control loop using the meta-model
+        # and EACH model in the ensemble along the same reference
         in_axes = (None, None, None, None, None, None, 0)
-        z, t = jax.vmap(odeint_fixed_step, in_axes)(
-            ode_partial, z0, 0.0, T, dt, meta_params, ensemble_params
-        )
-
-        # Unpack augmented state
-        x, A, c, u_prev, alpha_prev = z
+        ode = partial(ode, reference=reference)
+        z, t = jax.vmap(odeint_fixed_step, in_axes)(ode, z0, 0., T, dt,
+                                                    meta_params,
+                                                    ensemble_params)
+        x, A, c = z
+        #jax.debug.print('t: {t}', t=t)
         return t, x, A, c
 
     # Initialize meta-model parameters
@@ -376,17 +357,18 @@ if __name__ == "__main__":
     subkeys_gains = subkeys[-3:]
     meta_params = {
         # hidden layer weights
-        'W': [0.1 * jax.random.normal(subkeys_W[i], shapes[i])
+        'W': [5.*jax.random.normal(subkeys_W[i], shapes[i])
               for i in range(num_hlayers)],
         # hidden layer biases
-        'b': [0.1 * jax.random.normal(subkeys_b[i], (shapes[i][0],))
+        'b': [5.*jax.random.normal(subkeys_b[i], (shapes[i][0],))
               for i in range(num_hlayers)],
-        'gains': {
-            'Λ': jnp.diag(0.5 * jax.random.normal(subkeys_gains[0], (num_dof,))),
-            'K': jnp.diag(0.5 * jax.random.normal(subkeys_gains[1], (num_dof,))),
-            'P': jnp.diag(0.5 * jax.random.normal(subkeys_gains[2], (num_dof,))),
+        'gains': {  # vectorized control and adaptation gains
+            'Λ': jnp.concatenate([0.1*jax.random.normal(subkeys_gains[0], (3,)), jnp.zeros(3)]),
+            'K': jnp.concatenate([0.25*jax.random.normal(subkeys_gains[1], (3,)), jnp.zeros(3)]),
+            'P': jnp.concatenate([0.25*jax.random.normal(subkeys_gains[2], (3,)), jnp.zeros(3)]),
         }
     }
+
     # Initialize spline coefficients for each reference trajectory
     num_refs = hparams['meta']['num_refs']
     key, *subkeys = jax.random.split(key, 1 + num_refs)
@@ -411,7 +393,7 @@ if __name__ == "__main__":
 
     # Simulate the adaptive control loop for each model in the ensemble and
     # each reference trajectory (i.e., spline coefficients)
-    @jax.tree_util.Partial(jax.vmap, in_axes=(None, None, 0, 0, None, None))
+    @partial(jax.vmap, in_axes=(None, None, 0, 0, None, None))
     def simulate(meta_params, ensemble_params, t_knots, coefs, T, dt,
                  min_ref=min_ref, max_ref=max_ref):
         """TODO: docstring."""
@@ -423,8 +405,8 @@ if __name__ == "__main__":
         t, x, A, c = ensemble_sim(meta_params, ensemble_params,
                                   reference, T, dt)
         return t, x, A, c
-    
-    @jax.tree_util.Partial(jax.jit, static_argnums=(4, 5))
+
+    @partial(jax.jit, static_argnums=(4, 5))
     def loss(meta_params, ensemble_params, t_knots, coefs, T, dt,
              regularizer_l2, regularizer_ctrl, regularizer_error):
         """TODO: docstring."""
@@ -448,6 +430,7 @@ if __name__ == "__main__":
                 + regularizer_ctrl*control_loss
                 + regularizer_error*estimation_loss
                 + regularizer_l2*l2_penalty) / normalizer
+        jax.debug.print('loss: {loss}', loss=loss)
         aux = {
             # for each model in ensemble
             'tracking_loss':   jnp.sum(c[:, :, -1, 0], axis=0) / num_refs,
@@ -493,7 +476,7 @@ if __name__ == "__main__":
     best_loss = jnp.inf
     best_meta_params = meta_params
 
-    @jax.tree_util.Partial(jax.jit, static_argnums=(5, 6))
+    @partial(jax.jit, static_argnums=(5, 6))
     def step(idx, opt_state, ensemble_params, t_knots, coefs, T, dt,
              regularizer_l2, regularizer_ctrl, regularizer_error):
         """TODO: docstring."""
@@ -505,7 +488,7 @@ if __name__ == "__main__":
         opt_state = update_opt(idx, grads, opt_state)
         return opt_state, aux
 
-    # Pre-compile before training (ALSO called warmup for JAX compilation)
+    # Pre-compile before training
     print('META-TRAINING: Pre-compiling ... ', end='', flush=True)
     dt = hparams['meta']['dt']
     T = hparams['meta']['T']
@@ -524,21 +507,29 @@ if __name__ == "__main__":
 
     # Do gradient descent
     for _ in tqdm(range(hparams['meta']['num_steps'])):
+        # Perform a training step and update the meta-model parameters
         opt_state, train_aux = step(
             step_idx, opt_state, train_ensemble, train_t_knots, train_coefs,
             T, dt, regularizer_l2, regularizer_ctrl, regularizer_error
         )
         new_meta_params = get_params(opt_state)
+        # Compute the current validation loss
         valid_loss, valid_aux = loss(
             new_meta_params, valid_ensemble, valid_t_knots, valid_coefs,
-            T, dt, 0., 0., 0.
+            T, dt, 0., regularizer_ctrl, 0.
         )
+        # Update best loss and best step index if a new low is encountered
         if valid_loss < best_loss:
             best_meta_params = new_meta_params
             best_loss = valid_loss
             best_idx = step_idx
+            jax.debug.print('best_idx: {best_idx}', best_idx=best_idx)
+        
+        # Optionally, print the current losses every 100 steps
+        if step_idx % 100 == 0:
+            tqdm.write(f"Step {step_idx}: valid_loss = {valid_loss:.6f}, best_loss = {best_loss:.6f}, best_idx = {best_idx:.6f}")
+        
         step_idx += 1
-
     # Save hyperparameters, ensemble, model, and controller
     output_name = "seed={:d}_M={:d}".format(hparams['seed'], num_models)
     import numpy as np
