@@ -40,7 +40,7 @@ jax.config.update('jax_platform_name', 'cpu')  # TODO: keep or remove?
 if __name__ == "__main__":
     print('Testing ... ', flush=True)
     start = time.time()
-    seed, M, ctrl_pen, act, test_act = 7, 20, 1, 'off', 'on'
+    seed, M, ctrl_pen, act, test_act = 0, 2, 2, 'off', 'off'
 
     # Sampled-time simulator
     @jax.tree_util.Partial(jax.jit, static_argnums=(3,))
@@ -128,8 +128,8 @@ if __name__ == "__main__":
             u_aft = map_to_3dof(u_rate_sat, alpha_rate_sat, thruster_config)
                 
 
-            carry = (t, q, dq, u_aft, A, dA, alpha, u_rate_sat)
-            output_slice = (q, dq, u_aft, τ, r, dr)
+            carry = (t, q, dq, u, A, dA, alpha, u_rate_sat)
+            output_slice = (q, dq, u, τ, r, dr)
             return carry, output_slice
 
         # Initial conditions

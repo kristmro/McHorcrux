@@ -4,7 +4,7 @@
 #         Autonomous Systems Lab (ASL), Stanford
 #         (GitHub: spenrich)
 
-for seed in {6..9}
+for seed in {8..9}
 do
     for M in 20 30 40 50
     do

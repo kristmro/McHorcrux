@@ -104,13 +104,13 @@ if __name__ == "__main__":
     a = 6
     b = 3
     hs_min = 0.5 * scale
-    hs_max = 7.0 * scale
+    hs_max = 5.0 * scale
     key, subkey = jax.random.split(key, 2)
     hs = hs_min + (hs_max - hs_min) * jax.random.beta(subkey, a, b, (num_traj,))
-    wave_dir = jnp.zeros((num_traj,), dtype=int)#making the wave_dir zero
-    #wave_dir = jnp.rint(jax.random.uniform(key, (num_traj,), minval=0, maxval=360)).astype(int)
+    #wave_dir = jnp.zeros((num_traj,), dtype=int)#making the wave_dir zero
+    wave_dir = jnp.rint(jax.random.uniform(key, (num_traj,), minval=0, maxval=360)).astype(int)
     tp_min = 7 * sqrt_scale
-    tp_max = 20 * sqrt_scale
+    tp_max = 17.0 * sqrt_scale
     tp = tp_min + (tp_max - tp_min) * jax.random.beta(subkey, a, b, (num_traj,))
     wave_parm = (hs, tp, wave_dir)
     
@@ -140,7 +140,7 @@ if __name__ == "__main__":
         't_knots': t_knots, 'r_knots': r_knots,
         'wave_parm': wave_parm
     }
-    with open('data/training_data/training_data_wave0_N15_hs7.pkl', 'wb') as file:
+    with open('data/training_data/training_data_N15_hs5.pkl', 'wb') as file:
         pickle.dump(data, file)
 
     # --------------------- Plotting Section ---------------------

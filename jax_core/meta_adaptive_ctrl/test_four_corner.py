@@ -133,7 +133,7 @@ def ref(t):
 if __name__ == "__main__":
     print('Testing ... ', flush=True)
     start = time.time()
-    seed, M, ctrl_pen, act, test_act = 7, 20, 1, 'off', 'on'
+    seed, M, ctrl_pen, act, test_act = 0, 2, 2, 'off', 'off'
 
     # Sampled-time simulator
     @jax.tree_util.Partial(jax.jit, static_argnums=(3,))
@@ -210,9 +210,9 @@ if __name__ == "__main__":
             
             u_aft = map_to_3dof(u_rate_sat, alpha_rate_sat, thruster_config)
                 
-            carry = (t, q, dq, u_aft, A, dA, alpha, u_rate_sat)
-            output_slice = (q, dq, u_aft, τ, r, dr)
-            return carry, output_slice
+            carry = (t, q, dq, u, A, dA, alpha, u_rate_sat)
+            output_slice = (q, dq, u, τ, r, dr)
+            return carry, (output_slice, f_hat)
 
         # Initial conditions
         t0 = ts[0]
@@ -226,7 +226,7 @@ if __name__ == "__main__":
         u_f0 = jnp.zeros(6)
         # Run simulation loop
         carry = (t0, q0, dq0, u0, A0, dA0, alpha0, u_f0)
-        carry, output = jax.lax.scan(loop, carry, ts[1:])
+        carry, (output, f_hat) = jax.lax.scan(loop, carry, ts[1:])
         q, dq, u, τ, r, dr = output
 
         # Prepend initial conditions
@@ -236,13 +236,14 @@ if __name__ == "__main__":
         τ = jnp.vstack((τ0, τ))
         r = jnp.vstack((r0, r))
         dr = jnp.vstack((dr0, dr))
+        f_hat = jnp.vstack((f0, f_hat))
 
-        return q, dq, u, τ, r, dr
+        return q, dq, u, τ, r, dr, f_hat
 
     # Choose wave parameters, fixed control gains, and simulation times
     num_dof = 3
     key = jax.random.PRNGKey(seed)
-    w = disturbance(jnp.array((6*(1/90), 16*(1/90)**0.5, 0)), key)
+    w = disturbance(jnp.array((6.*(1/90), 16*(1/90)**0.5, 0)), key)
     λ, k, p = 1.0, 10.0, 10.0
     T, dt = T_sim, dt
     ts = jnp.arange(0, T + dt, dt)
@@ -266,14 +267,34 @@ if __name__ == "__main__":
         'K': params_to_posdef(train_results['controller']['K']),
         'P': params_to_posdef(train_results['controller']['P']),
     }
-    print('  params:', params)
-    q, dq, u, τ, r, dr = simulate(ts, w, params, ref)
+    q, dq, u, τ, r, dr, f_hat = simulate(ts, w, params, ref)
     e = np.concatenate((q - r, dq - dr), axis=-1)
     test_results['meta_adap_ctrl'] = {
         'params': params,
         't': ts, 'q': q, 'dq': dq, 'r': r, 'dr': dr,
         'u': u, 'τ': τ, 'e': e,
     }
+    # import matplotlib.pyplot as plt
+    # import numpy as np
+    # # ----------------------------------------------------------------------------
+    # # Plot the wave loads vs time for each degree of freedom (DOF)
+    # # ----------------------------------------------------------------------------
+    # # Note: wave_loads is an array with shape (n_steps, 6) if tau_wave is a 6-element vector.
+    # wave_loads_np = np.array(f_hat).T  # Transpose to shape (DOF, n_steps) to match t_array shape
+    # t_array = np.asarray(ts)  # Time array, shape: (n_steps,)
+    # fig, axes = plt.subplots(nrows=3, ncols=1, figsize=(10, 12), sharex=True)
+    # dof_labels = ['Surge', 'Sway', 'Yaw']
+
+    # for i in range(3):
+    #     axes[i].plot(t_array, wave_loads_np[i, :], label=f'{dof_labels[i]}')
+    #     axes[i].set_ylabel('Wave load')
+    #     axes[i].legend()
+    #     axes[i].grid()
+
+    # axes[-1].set_xlabel('Time [s]')
+    # fig.suptitle('Wave Loads vs Time for Each DOF', y=0.95)  # Adjusted y position
+    # plt.tight_layout(rect=[0, 0, 1, 0.96])  # Leave space for the suptitle
+    # plt.show()
 
     with open(filename, 'rb') as file:
         train_results = pickle.load(file)
@@ -285,7 +306,7 @@ if __name__ == "__main__":
     params['Λ'] = λ * jnp.eye(num_dof)
     params['K'] = k * jnp.eye(num_dof)
     params['P'] = p * jnp.eye(num_dof)
-    q, dq, u, τ, r, dr = simulate(ts, w, params, ref)
+    q, dq, u, τ, r, dr, f_hat = simulate(ts, w, params, ref)
     e = np.concatenate((q - r, dq - dr), axis=-1)
     test_results['adaptive_ctrl'] = {
         'params': params,
@@ -302,3 +323,25 @@ if __name__ == "__main__":
 
     end = time.time()
     print('done! ({:.2f} s)'.format(end - start))
+
+
+
+    # # ----------------------------------------------------------------------------
+    # # Plot the wave loads vs time for each degree of freedom (DOF)
+    # # ----------------------------------------------------------------------------
+    # # Note: wave_loads is an array with shape (n_steps, 6) if tau_wave is a 6-element vector.
+    # wave_loads_np = np.array(f_hat).T  # Transpose to shape (DOF, n_steps) to match t_array shape
+    # t_array = np.asarray(ts)  # Time array, shape: (n_steps,)
+    # fig, axes = plt.subplots(nrows=3, ncols=1, figsize=(10, 12), sharex=True)
+    # dof_labels = ['Surge', 'Sway', 'Yaw']
+
+    # for i in range(3):
+    #     axes[i].plot(t_array, wave_loads_np[i, :], label=f'{dof_labels[i]}')
+    #     axes[i].set_ylabel('Wave load')
+    #     axes[i].legend()
+    #     axes[i].grid()
+
+    # axes[-1].set_xlabel('Time [s]')
+    # fig.suptitle('Wave Loads vs Time for Each DOF', y=0.95)  # Adjusted y position
+    # plt.tight_layout(rect=[0, 0, 1, 0.96])  # Leave space for the suptitle
+    # plt.show()

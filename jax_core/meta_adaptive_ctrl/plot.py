@@ -6,7 +6,7 @@ import os
 
 which_test = 'four_corner'
 #which_test = 'loop'
-seed, M, ctrl_pen, act, test_act = 7, 20, 1, 'off', 'on'
+seed, M, ctrl_pen, act, test_act = 0, 2, 2, 'off', 'off'
 
 
 

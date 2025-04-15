@@ -82,7 +82,7 @@ def controller(q, dq, r, dr, ddr, f_hat, params):
 
 def main():
     # Simulation parameters
-    dt = 0.1
+    dt = 0.01
     simtime = 300  # seconds
     max_steps = int(simtime / dt)
     
