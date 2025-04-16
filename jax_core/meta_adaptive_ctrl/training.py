@@ -48,9 +48,9 @@ else:
     print("JAX is using CPU")
 
 # Initialize PRNG key
-argsseed = 0
+argsseed = 3
 key = jax.random.PRNGKey(argsseed)
-argsM=5
+argsM=20
 argsuse_x64 = True
 jax.config.update('jax_enable_x64', True)
 # Hyperparameters
@@ -67,19 +67,19 @@ hparams = {
         'batch_frac':     0.25,  # fraction of training data per batch
         'regularizer_l2': 1e-4,  # coefficient for L2-regularization
         'learning_rate':  1e-2,  # step size for gradient optimization
-        'num_epochs':     1000,  # number of epochs
+        'num_epochs':     1500,  # number of epochs
     },
     # For meta-training
     'meta': {
         'num_hlayers':       2,          # number of hidden layers
         'hdim':              32,         # number of hidden units per layer
         'train_frac':        0.75,       #
-        'learning_rate':     1e-1,       # step size for gradient optimization
-        'num_steps':         500,        # maximum number of gradient steps
+        'learning_rate':     1e-2,       # step size for gradient optimization
+        'num_steps':         1000,        # maximum number of gradient steps
         'regularizer_l2':    1e-4,       # coefficient for L2-regularization
-        'regularizer_ctrl':  1e-2,       #
+        'regularizer_ctrl':  1e-3,       #
         'regularizer_error': 0.,         #
-        'T':                 15.,         # time horizon for each reference
+        'T':                 10.,         # time horizon for each reference
         'dt':                1e-2,       # time step for numerical integration
         'num_refs':          15,         # reference trajectories to generate
         'num_knots':         6,          # knot points per reference spline
@@ -96,7 +96,7 @@ if __name__ == "__main__":
     # DATA PROCESSING ########################################################
     # Load raw data and arrange in samples of the form
     # `(t, x, u, t_next, x_next)` for each trajectory, where `x := (q,dq)`
-    with open('data/training_data/training_data_N15_hs7.pkl', 'rb') as file:
+    with open('data/training_data/training_data_wave0_N15_hs7.pkl', 'rb') as file:
         raw = pickle.load(file)
     num_dof = raw['q'].shape[-1]       # number of degrees of freedom
     num_traj = raw['q'].shape[0]       # total number of raw trajectories
@@ -190,13 +190,13 @@ if __name__ == "__main__":
     key_A = subkeys[-1]
     ensemble = {
         # hidden layer weights
-        'W': [5.0*jax.random.normal(keys_W[i], (num_models, *shapes[i]))
+        'W': [1.0*jax.random.normal(keys_W[i], (num_models, *shapes[i]))
               for i in range(num_hlayers)],
         # hidden layer biases
-        'b': [5.0*jax.random.normal(keys_b[i], (num_models, shapes[i][0]))
+        'b': [1.0*jax.random.normal(keys_b[i], (num_models, shapes[i][0]))
               for i in range(num_hlayers)],
         # last layer weights
-        'A': 5.0*jax.random.normal(key_A, (num_models, num_dof, hdim))
+        'A': 1.0*jax.random.normal(key_A, (num_models, num_dof, hdim))
     }
 
     # Shuffle samples in time along each trajectory, then split each
@@ -357,15 +357,18 @@ if __name__ == "__main__":
     subkeys_gains = subkeys[-3:]
     meta_params = {
         # hidden layer weights
-        'W': [5.*jax.random.normal(subkeys_W[i], shapes[i])
+        'W': [1.0*jax.random.normal(subkeys_W[i], shapes[i])
               for i in range(num_hlayers)],
         # hidden layer biases
-        'b': [5.*jax.random.normal(subkeys_b[i], (shapes[i][0],))
+        'b': [1.0*jax.random.normal(subkeys_b[i], (shapes[i][0],))
               for i in range(num_hlayers)],
         'gains': {  # vectorized control and adaptation gains
-            'Λ': jnp.concatenate([0.1*jax.random.normal(subkeys_gains[0], (3,)), jnp.zeros(3)]),
-            'K': jnp.concatenate([0.25*jax.random.normal(subkeys_gains[1], (3,)), jnp.zeros(3)]),
-            'P': jnp.concatenate([0.25*jax.random.normal(subkeys_gains[2], (3,)), jnp.zeros(3)]),
+            'Λ': 0.15*jax.random.normal(subkeys_gains[0],
+                                       ((num_dof*(num_dof + 1)) // 2,)),
+            'K': 0.2*jax.random.normal(subkeys_gains[1],
+                                       ((num_dof*(num_dof + 1)) // 2,)),
+            'P': 0.2*jax.random.normal(subkeys_gains[2],
+                                       ((num_dof*(num_dof + 1)) // 2,)),
         }
     }
 
@@ -506,30 +509,50 @@ if __name__ == "__main__":
     start = time.time()
 
     # Do gradient descent
+    # Define early stopping parameters
+    patience = 100             # Number of steps without improvement to tolerate
+    patience_counter = 0       # Counter for how many steps in a row without improvement
+
+    # Do gradient descent with early stopping
     for _ in tqdm(range(hparams['meta']['num_steps'])):
         # Perform a training step and update the meta-model parameters
         opt_state, train_aux = step(
-            step_idx, opt_state, train_ensemble, train_t_knots, train_coefs,
+            step_idx, opt_state,
+            train_ensemble, train_t_knots, train_coefs,
             T, dt, regularizer_l2, regularizer_ctrl, regularizer_error
         )
         new_meta_params = get_params(opt_state)
+
         # Compute the current validation loss
         valid_loss, valid_aux = loss(
-            new_meta_params, valid_ensemble, valid_t_knots, valid_coefs,
+            new_meta_params, valid_ensemble,
+            valid_t_knots, valid_coefs,
             T, dt, 0., regularizer_ctrl, 0.
         )
-        # Update best loss and best step index if a new low is encountered
+
+        # Check if the validation loss has improved
         if valid_loss < best_loss:
             best_meta_params = new_meta_params
             best_loss = valid_loss
             best_idx = step_idx
-            jax.debug.print('best_idx: {best_idx}', best_idx=best_idx)
-        
+            patience_counter = 0  # Reset the counter since we saw improvement
+        else:
+            patience_counter += 1  # No improvement; increment the counter
+
         # Optionally, print the current losses every 100 steps
         if step_idx % 100 == 0:
-            tqdm.write(f"Step {step_idx}: valid_loss = {valid_loss:.6f}, best_loss = {best_loss:.6f}, best_idx = {best_idx:.6f}")
+            tqdm.write(
+                f"Step {step_idx}: valid_loss = {valid_loss:.6f}, "
+                f"best_loss = {best_loss:.6f}, best_idx = {best_idx:.6f}"
+            )
         
+        # If we have not seen any improvement for a certain number of steps, stop early
+        if patience_counter >= patience:
+            print(f"No improvement over {patience} steps, stopping early at step {step_idx}")
+            break
+
         step_idx += 1
+
     # Save hyperparameters, ensemble, model, and controller
     output_name = "seed={:d}_M={:d}".format(hparams['seed'], num_models)
     import numpy as np

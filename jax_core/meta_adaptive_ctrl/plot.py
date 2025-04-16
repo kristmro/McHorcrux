@@ -4,19 +4,21 @@ import numpy as np
 import os
 
 
-which_test = 'four_corner'
-#which_test = 'loop'
-seed, M, ctrl_pen, act, test_act = 0, 2, 2, 'off', 'off'
+#which_test = 'four_corner'
+which_test = 'loop'
+seed, M, ctrl_pen, act, test_act = 3, 20, 3, 'off', 'off'
 
 
 
-# Create figures directory if it doesn't exist
-os.makedirs('figures/train_act_{}/{}/test_act_{}/ctrl_pen_{}/seed={}_M={}'.format(act,which_test,test_act,ctrl_pen, seed, M), exist_ok=True)
+
 
 # Load the test results
 print("Loading test results...")
 with open('data/testing_results/train_act_{}/{}/test_act_{}/ctrl_pen_{}/seed={}_M={}.pkl'.format(act,which_test,test_act,ctrl_pen,seed,M), 'rb') as file:
     results = pickle.load(file)
+
+# Create figures directory if it doesn't exist
+os.makedirs('figures/train_act_{}/{}/test_act_{}/ctrl_pen_{}/seed={}_M={}'.format(act,which_test,test_act,ctrl_pen, seed, M), exist_ok=True)
 
 # Check what keys are actually available in the results
 print("Available methods:", [key for key in results.keys() if key not in ['w', 'gains']])

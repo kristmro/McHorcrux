@@ -132,7 +132,7 @@ def plot_simulation_examples(data, save_dir):
 
 if __name__ == "__main__":
     # Define file paths.
-    data_path = "data/training_data/training_data_wave0_N15_hs7.pkl"
+    data_path = "data/training_data/training_data_N15_hs7.pkl"
     save_dir = "figures/data_gen"
     
     # Create the output directory if it does not exist.

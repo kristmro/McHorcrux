@@ -40,7 +40,7 @@ jax.config.update('jax_platform_name', 'cpu')  # TODO: keep or remove?
 if __name__ == "__main__":
     print('Testing ... ', flush=True)
     start = time.time()
-    seed, M, ctrl_pen, act, test_act = 0, 2, 2, 'off', 'off'
+    seed, M, ctrl_pen, act, test_act = 3, 20, 3, 'off', 'off'
 
     # Sampled-time simulator
     @jax.tree_util.Partial(jax.jit, static_argnums=(3,))
@@ -214,23 +214,33 @@ if __name__ == "__main__":
         't': ts, 'q': q, 'dq': dq, 'r': r, 'dr': dr,
         'u': u, 'τ': τ, 'e': e,
     }
-    with open(filename, 'rb') as file:
-        train_results = pickle.load(file)
-    params = {
-        'W': train_results['model']['W'],
-        'b': train_results['model']['b'],
-    }
-    print('Adaptive ctrl self tuned...', flush=True)
-    params['Λ'] = λ * jnp.eye(num_dof)
-    params['K'] = k * jnp.eye(num_dof)
-    params['P'] = p * jnp.eye(num_dof)
-    q, dq, u, τ, r, dr = simulate(ts, w, params, reference)
-    e = np.concatenate((q - r, dq - dr), axis=-1)
-    test_results['adaptive_ctrl'] = {
-        'params': params,
-        't': ts, 'q': q, 'dq': dq, 'r': r, 'dr': dr,
-        'u': u, 'τ': τ, 'e': e,
-    }
+    
+    for method in ('pid', 'adaptive_ctrl'):
+        if method == 'pid':
+            print('PID Ctrl...', flush=True)
+            params = {
+                'W': [jnp.zeros((1, 2*num_dof)), ],
+                'b': [jnp.inf * jnp.ones((1,)), ],
+            }
+        else:
+            with open(filename, 'rb') as file:
+                train_results = pickle.load(file)
+            params = {
+                'W': train_results['model']['W'],
+                'b': train_results['model']['b'],
+            }
+            print('Adaptive ctrl self tuned...', flush=True)
+        params['Λ'] = λ * jnp.eye(num_dof)
+        params['K'] = k * jnp.eye(num_dof)
+        params['P'] = p * jnp.eye(num_dof)
+        q, dq, u, τ, r, dr = simulate(ts, w, params, reference)
+        e = np.concatenate((q - r, dq - dr), axis=-1)
+        test_results[method] = {
+            'params': params,
+            't': ts, 'q': q, 'dq': dq, 'r': r, 'dr': dr,
+            'u': u, 'τ': τ, 'e': e,
+        }
+
     output_path = os.path.join('data', 'testing_results','train_act_{}'.format(act),'loop','test_act_{}'.format(test_act),'ctrl_pen_{}'.format(ctrl_pen),'seed={}_M={}.pkl'.format(seed, M))
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     # Save
