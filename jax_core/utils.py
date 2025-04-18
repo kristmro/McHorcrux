@@ -46,6 +46,11 @@ def three2sixDOF(v):
           part9 = flat[8:9]
       The concatenated vector of length 36 is then reshaped to (6,6).
     """
+    #If v is 6DOF, just print a warning and return
+    if v.ndim == 1 and v.shape[0] == 6:
+        print("Warning: Input is already 6DOF, returning as-is.")
+        return v
+
     if v.ndim == 1:
         if v.shape[0] != 3:
             raise ValueError(f"Expected 1D array with 3 elements, got shape {v.shape}")
@@ -76,6 +81,11 @@ def six2threeDOF(v):
     - If `v` is a matrix of shape (T,6) with T != 6, returns the columns [0, 1, 5] → shape (T,3).
     - If `v` is a 6x6 matrix, returns the submatrix with rows and columns [0, 1, 5] → shape (3,3).
     """
+    #If v is 3DOF, just print a warning and return
+    if v.ndim == 1 and v.shape[0] == 3:
+        print("Warning: Input is already 3DOF, returning as-is.")
+        return v
+    
     if isinstance(v, np.ndarray):
         v = jnp.array(v)
         
@@ -144,14 +154,6 @@ def J(eta):
         [jnp.zeros((3, 3)), Tzyx(eta)]
     ])
 
-def rk4_step_impl(x, dt, f, *args):
-    k1 = f(x, *args)
-    k2 = f(x + 0.5 * dt * k1, *args)
-    k3 = f(x + 0.5 * dt * k2, *args)
-    k4 = f(x + dt * k3, *args)
-    return x + (dt / 6.0) * (k1 + 2 * k2 + 2 * k3 + k4)
-
-rk4_step = jax.jit(rk4_step_impl, static_argnums=(2,))
 
 
 # --------------------------------------------------------------------------
@@ -160,11 +162,16 @@ rk4_step = jax.jit(rk4_step_impl, static_argnums=(2,))
 """
 Utility functions for integrating ODEs.
 
-Author: Spencer M. Richards
-        Autonomous Systems Lab (ASL), Stanford
-        (GitHub: spenrich)
+Author: Kristian Magnus Roen, Spencer M. Richards
 """
 
+def rk4_step_impl(x, dt, f, *args):
+    k1 = f(x, *args)
+    k2 = f(x + 0.5 * dt * k1, *args)
+    k3 = f(x + 0.5 * dt * k2, *args)
+    k4 = f(x + dt * k3, *args)
+    return x + (dt / 6.0) * (k1 + 2 * k2 + 2 * k3 + k4)
+rk4_step = jax.jit(rk4_step_impl, static_argnums=(2,))
 
 @partial(jax.jit, static_argnums=(0,))
 def rk38_step(func, h, x, t, *args):

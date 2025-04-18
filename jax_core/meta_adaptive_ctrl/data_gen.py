@@ -70,7 +70,7 @@ if __name__ == "__main__":
             q, dq = x
             # Use the new jit-compatible wave load function.
             f_ext = disturbance(t, q, wl)
-            ddq = plant(q, dq, u, f_ext)
+            dq, ddq = plant(q, dq, u, f_ext)
             return (dq, ddq)
 
         def loop(carry, t):
@@ -107,8 +107,9 @@ if __name__ == "__main__":
     hs_max = 7.0 * scale
     key, subkey = jax.random.split(key, 2)
     hs = hs_min + (hs_max - hs_min) * jax.random.beta(subkey, a, b, (num_traj,))
-    wave_dir = jnp.zeros((num_traj,), dtype=int)#making the wave_dir zero
+    #wave_dir = jnp.zeros((num_traj,), dtype=int)#making the wave_dir zero
     #wave_dir = jnp.rint(jax.random.uniform(key, (num_traj,), minval=0, maxval=360)).astype(int)
+    wave_dir = jnp.rint(jax.random.uniform(key, (num_traj,), minval=-45, maxval=45)).astype(int)
     tp_min = 7 * sqrt_scale
     tp_max = 20.0 * sqrt_scale
     tp = tp_min + (tp_max - tp_min) * jax.random.beta(subkey, a, b, (num_traj,))
@@ -140,7 +141,7 @@ if __name__ == "__main__":
         't_knots': t_knots, 'r_knots': r_knots,
         'wave_parm': wave_parm
     }
-    with open('data/training_data/training_data_wave0_N15_hs7.pkl', 'wb') as file:
+    with open('data/training_data/training_data_wave_pm45_N15_hs7.pkl', 'wb') as file:
         pickle.dump(data, file)
 
     # --------------------- Plotting Section ---------------------

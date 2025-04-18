@@ -32,15 +32,50 @@ from jax_core.thruster_allocation.psudo import (
     create_thruster_config, allocate_with_config, saturate_rate, map_to_3dof,
     get_default_config, DEFAULT_THRUST_MAX, DEFAULT_THRUST_MIN, DEFAULT_DT,
     DEFAULT_N_DOT_MAX, DEFAULT_ALPHA_DOT_MAX
-) 
+)
+from jax_core.utils import mat_to_svec_dim
 
+def diag_chol_indices(n):
+    """
+    Return the indices in the length‐d Cholesky‐parameter vector
+    corresponding to the diagonal of an n×n L.
+
+    For n=3, this returns [0,2,5], since the param order is
+        [L00, L10, L11, L20, L21, L22].
+    """
+    return jnp.array([i * (i+1)//2 + i for i in range(n)], dtype=int)
+
+def vec_to_posdef_diag_cholesky(v):
+    """
+    Build a *purely diagonal* PD matrix X from an unconstrained vector v∈ℝⁿ
+    by embedding it into the Cholesky‐parametrization and reusing params_to_posdef.
+
+    Internally:
+      • full = zeros(d) with d = n(n+1)/2
+      • full[idxs] = v/2    # see note below
+      • L = params_to_cholesky(full)  # exponentiates diag(full)
+      • X = L @ L.T
+
+    Because full[i*(i+1)/2 + i] = v_i/2, L_ii = exp(v_i/2), so X_ii = exp(v_i).
+
+    Off‐diagonal slots of full remain zero ⇒ L_ij=0 for i≠j ⇒ X is exactly diagonal.
+    """
+    v = jnp.atleast_1d(v)
+    n = v.shape[-1]
+    d = mat_to_svec_dim(n)                # = n(n+1)/2
+    idxs = diag_chol_indices(n)           # which param‑vector slots are diag
+    full = jnp.zeros(v.shape[:-1] + (d,), dtype=v.dtype)
+    # scatter half‐logs so that X_ii = exp(v_i)
+    full = full.at[..., idxs].set(v/2)
+    # now call your existing reparam → PD
+    return params_to_posdef(full)
 # Uncomment this line to force using the CPU
 jax.config.update('jax_platform_name', 'cpu')  # TODO: keep or remove?
 
 if __name__ == "__main__":
     print('Testing ... ', flush=True)
     start = time.time()
-    seed, M, ctrl_pen, act, test_act = 3, 20, 3, 'off', 'off'
+    seed, M, ctrl_pen, act, test_act = 7, 10, 3, 'off', 'off'
 
     # Sampled-time simulator
     @jax.tree_util.Partial(jax.jit, static_argnums=(3,))
@@ -81,17 +116,16 @@ if __name__ == "__main__":
             v, dv = dr - Λ@e, ddr - Λ@de
 
             # Control input and adaptation law
-            M, D, G, R = prior(q, dq)
-            τ = M@dv + D@v + G@q - f_hat - K@s
+            M_mat, D, G, R = prior(q, dq)
+            τ = M_mat @ dv + D @ v + G @ q - f_hat - K @ s
             u = jnp.linalg.solve(R, τ)
             return u, τ
 
-        # Closed-loop ODE for `x = (q, dq)`, with a zero-order hold on
-        # the controller
+        # Closed-loop ODE for `x = (q, dq)`, with a zero-order hold on the controller
         def ode(x, t, u, w=w):
             q, dq = x
             f_ext = disturbance(t, q, w)
-            ddq = plant(q, dq, u, f_ext)
+            dq, ddq = plant(q, dq, u, f_ext)
             dx = (dq, ddq)
             return dx
 
@@ -173,7 +207,7 @@ if __name__ == "__main__":
         d = 4.             # displacement along `x` from `t=0` to `t=T`
         w = 6.             # loop width
         h = 4.             # loop height
-        ϕ_max = jnp.pi/3   # maximum roll angle (achieved at top of loop)
+        ϕ_max = jnp.pi/3   # maximum yaw1 angle (achieved at top of loop)
     
         x = (w/2)*jnp.sin(2*jnp.pi * t/T) + d*(t/T)
         y = (h/2)*(1 - jnp.cos(2*jnp.pi * t/T))
@@ -200,13 +234,23 @@ if __name__ == "__main__":
     filename = os.path.join('data', 'training_results','act_{}'.format(act),'ctrl_pen_{}'.format(ctrl_pen),'seed={}_M={}.pkl'.format(seed, M))
     with open(filename, 'rb') as file:
         train_results = pickle.load(file)
-    params = {
-        'W': train_results['model']['W'],
-        'b': train_results['model']['b'],
-        'Λ': params_to_posdef(train_results['controller']['Λ']),
-        'K': params_to_posdef(train_results['controller']['K']),
-        'P': params_to_posdef(train_results['controller']['P']),
-    }
+    if train_results['controller']['Λ'].shape[-1] == 2*num_dof: 
+            params = {
+                'W': train_results['model']['W'],
+                'b': train_results['model']['b'],
+                'Λ': params_to_posdef(train_results['controller']['Λ']),
+                'K': params_to_posdef(train_results['controller']['K']),
+                'P': params_to_posdef(train_results['controller']['P']),
+            }
+    else:
+        # If the controller parameters are not in the correct shape, reshape them
+        params = {
+            'W': train_results['model']['W'],
+            'b': train_results['model']['b'],
+            'Λ': vec_to_posdef_diag_cholesky(train_results['controller']['Λ']),
+            'K': vec_to_posdef_diag_cholesky(train_results['controller']['K']),
+            'P': vec_to_posdef_diag_cholesky(train_results['controller']['P']),
+        }
     q, dq, u, τ, r, dr = simulate(ts, w, params, reference)
     e = np.concatenate((q - r, dq - dr), axis=-1)
     test_results['meta_adap_ctrl'] = {
@@ -249,3 +293,168 @@ if __name__ == "__main__":
 
     end = time.time()
     print('done! ({:.2f} s)'.format(end - start))
+    #--------------------------------------------------------------------
+    # Plotting
+    #--------------------------------------------------------------------
+    import pickle
+    import matplotlib.pyplot as plt
+    import numpy as np
+    import os
+
+    which_test = 'loop'
+    # Load the test results
+    print("Loading test results...")
+    with open('data/testing_results/train_act_{}/{}/test_act_{}/ctrl_pen_{}/seed={}_M={}.pkl'.format(act,which_test,test_act,ctrl_pen,seed,M), 'rb') as file:
+        results = pickle.load(file)
+
+    # Create figures directory if it doesn't exist
+    os.makedirs('figures/train_act_{}/{}/test_act_{}/ctrl_pen_{}/seed={}_M={}'.format(act,which_test,test_act,ctrl_pen, seed, M), exist_ok=True)
+
+    # Check what keys are actually available in the results
+    print("Available methods:", [key for key in results.keys() if key not in ['w', 'gains']])
+
+    # Define methods based on what's available
+    available_methods = [key for key in results.keys() if key not in ['w', 'gains']]
+    if not available_methods:
+        print("Error: No method results found in the data file!")
+        exit(1)
+
+    # Define styling based on available methods
+    if 'ours_meta' in available_methods:
+        if len(available_methods) > 1:
+            methods = available_methods
+            labels = ['Meta-learned' if m == 'ours_meta' else m.replace('_', ' ').title() for m in methods]
+        else:
+            methods = ['ours_meta']
+            labels = ['Meta-learned']
+    else:
+        methods = available_methods
+        labels = [m.replace('_', ' ').title() for m in methods]
+
+    # Generate enough distinct colors
+    colors = ['b', 'r', 'g', 'm', 'c', 'y'] + ['#%06X' % np.random.randint(0, 0xFFFFFF) for _ in range(max(0, len(methods)-6))]
+    coord_labels = ['x', 'y', 'φ']
+
+    print(f"Plotting data for methods: {methods}")
+
+    # Get time data
+    t = results[methods[0]]['t']
+
+    # Figure 1: Position tracking
+    fig1, axes1 = plt.subplots(3, 1, figsize=(10, 12), sharex=True)
+    fig1.suptitle('Position Tracking Performance', fontsize=16)
+
+    for i in range(3):
+        ax = axes1[i]
+        # Plot reference
+        ax.plot(t, results[methods[0]]['r'][:, i], 'k--', label='Reference')
+        
+        # Plot each method
+        for j, method in enumerate(methods):
+            ax.plot(t, results[method]['q'][:, i], colors[j], label=labels[j])
+        
+        ax.set_ylabel(f'{coord_labels[i]} position')
+        ax.grid(True)
+        if i == 0:
+            ax.legend()
+
+    axes1[2].set_xlabel('Time (s)')
+    plt.tight_layout()
+    plt.savefig('figures/train_act_{}/{}/test_act_{}/ctrl_pen_{}/seed={}_M={}/position_tracking.png'.format(act,which_test,test_act,ctrl_pen,seed,M), dpi=300)
+
+    # Continue with the rest of your plotting code using the dynamically determined methods
+    # Figure 2: 2D trajectory plot
+    fig2, ax2 = plt.subplots(figsize=(10, 8))
+    ax2.plot(results[methods[0]]['r'][:, 0], results[methods[0]]['r'][:, 1], 'k--', label='Reference')
+
+    for j, method in enumerate(methods):
+        ax2.plot(results[method]['q'][:, 0], results[method]['q'][:, 1], colors[j], label=labels[j])
+
+    ax2.set_xlabel('x position (m)')
+    ax2.set_ylabel('y position (m)')
+    ax2.set_title('2D Trajectory')
+    ax2.grid(True)
+    ax2.legend()
+    ax2.set_aspect('equal')
+    plt.savefig('figures/train_act_{}/{}/test_act_{}/ctrl_pen_{}/seed={}_M={}/trajectory_2d.png'.format(act,which_test,test_act,ctrl_pen,seed,M), dpi=300)
+
+    # Rest of your plotting code with the dynamic methods list...
+    # Figure 3: Tracking errors
+    fig3, axes3 = plt.subplots(3, 1, figsize=(10, 12), sharex=True)
+    fig3.suptitle('Tracking Errors', fontsize=16)
+
+    for i in range(3):
+        ax = axes3[i]
+        
+        for j, method in enumerate(methods):
+            # Extract position error (first 3 components of the error vector)
+            ax.plot(t, results[method]['e'][:, i], colors[j], label=labels[j])
+        
+        ax.set_ylabel(f'{coord_labels[i]} error')
+        ax.grid(True)
+        if i == 0:
+            ax.legend()
+
+    axes3[2].set_xlabel('Time (s)')
+    plt.tight_layout()
+    plt.savefig('figures/train_act_{}/{}/test_act_{}/ctrl_pen_{}/seed={}_M={}/tracking_errors.png'.format(act,which_test,test_act,ctrl_pen,seed,M), dpi=300)
+
+    # Figure 4: Control efforts
+    fig4, axes4 = plt.subplots(3, 1, figsize=(10, 12), sharex=True)
+    fig4.suptitle('Control Efforts cmd', fontsize=16)
+
+    for i in range(3):
+        ax = axes4[i]
+        
+        for j, method in enumerate(methods):
+            ax.plot(t, results[method]['τ'][:, i], colors[j], label=labels[j])
+        
+        ax.set_ylabel(f'τ_{coord_labels[i]}')
+        ax.grid(True)
+        if i == 0:
+            ax.legend()
+
+    axes4[2].set_xlabel('Time (s)')
+    plt.tight_layout()
+    plt.savefig('figures/train_act_{}/{}/test_act_{}/ctrl_pen_{}/seed={}_M={}/control_efforts_cmd.png'.format(act,which_test,test_act,ctrl_pen,seed,M), dpi=300)
+
+    # Figure 4: Control efforts
+    fig4, axes4 = plt.subplots(3, 1, figsize=(10, 12), sharex=True)
+    fig4.suptitle('Control Efforts body after saturation', fontsize=16)
+
+    for i in range(3):
+        ax = axes4[i]
+        
+        for j, method in enumerate(methods):
+            ax.plot(t, results[method]['u'][:, i], colors[j], label=labels[j])
+        
+        ax.set_ylabel(f'u_{coord_labels[i]}')
+        ax.grid(True)
+        if i == 0:
+            ax.legend()
+
+    axes4[2].set_xlabel('Time (s)')
+    plt.tight_layout()
+    plt.savefig('figures/train_act_{}/{}/test_act_{}/ctrl_pen_{}/seed={}_M={}/control_efforts_u_after.png'.format(act,which_test,test_act,ctrl_pen,seed,M), dpi=300)
+
+    # Figure 5: RMS error comparison
+    if len(methods) > 1:  # Only make comparison if we have multiple methods
+        fig5, ax5 = plt.subplots(figsize=(8, 6))
+        bar_width = 0.25
+        index = np.arange(3)
+
+        for j, method in enumerate(methods):
+            rms_errors = [np.sqrt(np.mean(results[method]['e'][:, i]**2)) for i in range(3)]
+            ax5.bar(index + j*bar_width, rms_errors, bar_width, label=labels[j], color=colors[j])
+
+        ax5.set_xlabel('Coordinate')
+        ax5.set_ylabel('RMS Error')
+        ax5.set_title('RMS Tracking Error Comparison')
+        ax5.set_xticks(index + bar_width/2)
+        ax5.set_xticklabels(coord_labels)
+        ax5.legend()
+        plt.tight_layout()
+        plt.savefig('figures/train_act_{}/{}/test_act_{}/ctrl_pen_{}/seed={}_M={}/rms_error_comparison.png'.format(act,which_test,test_act,ctrl_pen,seed,M), dpi=300)
+
+    print("Plots saved")
+    plt.show()

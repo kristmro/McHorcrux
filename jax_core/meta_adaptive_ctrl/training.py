@@ -41,6 +41,7 @@ from jax_core.meta_adaptive_ctrl.dynamics import prior_3dof as prior
 from jax_core.utils import (odeint_fixed_step, rk38_step, epoch,   
                    params_to_cholesky, params_to_posdef, tree_normsq,
                    random_ragged_spline, spline)
+
 # Just before printing "ENSEMBLE TRAINING: Pre-compiling ...", add something like:
 if any(device.platform == 'gpu' for device in jax.devices()):
     print("JAX has GPU access")
@@ -48,9 +49,9 @@ else:
     print("JAX is using CPU")
 
 # Initialize PRNG key
-argsseed = 3
+argsseed = 0
 key = jax.random.PRNGKey(argsseed)
-argsM=20
+argsM=5
 argsuse_x64 = True
 jax.config.update('jax_enable_x64', True)
 # Hyperparameters
@@ -77,11 +78,12 @@ hparams = {
         'learning_rate':     1e-2,       # step size for gradient optimization
         'num_steps':         1000,        # maximum number of gradient steps
         'regularizer_l2':    1e-4,       # coefficient for L2-regularization
-        'regularizer_ctrl':  1e-3,       #
+        'regularizer_ctrl':  0.5*1e-3,       #
         'regularizer_error': 0.,         #
+        'tracking_error':    500,       # coefficient for tracking error
         'T':                 10.,         # time horizon for each reference
         'dt':                1e-2,       # time step for numerical integration
-        'num_refs':          15,         # reference trajectories to generate
+        'num_refs':          40,         # reference trajectories to generate
         'num_knots':         6,          # knot points per reference spline
         'poly_orders':       (9, 9, 6),  # spline orders for each DOF
         'deriv_orders':      (4, 4, 2),  # smoothness objective for each DOF
@@ -138,6 +140,7 @@ if __name__ == "__main__":
             f = jnp.tanh(W@f + b)
         f = params['A'] @ f
         ddq = jax.scipy.linalg.solve(M, R@u + f - D@dq - G@q, assume_a='pos')
+        dq = R @ dq
         dx = jnp.concatenate((dq, ddq))
         return dx
 
@@ -190,13 +193,13 @@ if __name__ == "__main__":
     key_A = subkeys[-1]
     ensemble = {
         # hidden layer weights
-        'W': [1.0*jax.random.normal(keys_W[i], (num_models, *shapes[i]))
+        'W': [0.1*jax.random.normal(keys_W[i], (num_models, *shapes[i]))
               for i in range(num_hlayers)],
         # hidden layer biases
-        'b': [1.0*jax.random.normal(keys_b[i], (num_models, shapes[i][0]))
+        'b': [0.1*jax.random.normal(keys_b[i], (num_models, shapes[i][0]))
               for i in range(num_hlayers)],
         # last layer weights
-        'A': 1.0*jax.random.normal(key_A, (num_models, num_dof, hdim))
+        'A': 0.1*jax.random.normal(key_A, (num_models, num_dof, hdim))
     }
 
     # Shuffle samples in time along each trajectory, then split each
@@ -307,6 +310,7 @@ if __name__ == "__main__":
             f = jnp.tanh(W@f + b)
         f = params['A'] @ f
         ddq = jax.scipy.linalg.solve(M, τ + f - D@dq - G@q, assume_a='pos')
+        dq = R @ dq
         dx = jnp.concatenate((dq, ddq))
         
         # Integrated cost terms
@@ -357,17 +361,17 @@ if __name__ == "__main__":
     subkeys_gains = subkeys[-3:]
     meta_params = {
         # hidden layer weights
-        'W': [1.0*jax.random.normal(subkeys_W[i], shapes[i])
+        'W': [0.1*jax.random.normal(subkeys_W[i], shapes[i])
               for i in range(num_hlayers)],
         # hidden layer biases
-        'b': [1.0*jax.random.normal(subkeys_b[i], (shapes[i][0],))
+        'b': [0.1*jax.random.normal(subkeys_b[i], (shapes[i][0],))
               for i in range(num_hlayers)],
         'gains': {  # vectorized control and adaptation gains
-            'Λ': 0.15*jax.random.normal(subkeys_gains[0],
+            'Λ': 0.1*jax.random.normal(subkeys_gains[0],
                                        ((num_dof*(num_dof + 1)) // 2,)),
-            'K': 0.2*jax.random.normal(subkeys_gains[1],
+            'K': 0.1*jax.random.normal(subkeys_gains[1],
                                        ((num_dof*(num_dof + 1)) // 2,)),
-            'P': 0.2*jax.random.normal(subkeys_gains[2],
+            'P': 0.1*jax.random.normal(subkeys_gains[2],
                                        ((num_dof*(num_dof + 1)) // 2,)),
         }
     }
@@ -411,7 +415,7 @@ if __name__ == "__main__":
 
     @partial(jax.jit, static_argnums=(4, 5))
     def loss(meta_params, ensemble_params, t_knots, coefs, T, dt,
-             regularizer_l2, regularizer_ctrl, regularizer_error):
+             regularizer_l2, regularizer_ctrl, regularizer_error, tracking_error):
         """TODO: docstring."""
         # Simulate on each model for each reference trajectory
         t, x, A, c = simulate(meta_params, ensemble_params, t_knots,
@@ -429,7 +433,7 @@ if __name__ == "__main__":
         normalizer = T * num_refs * num_models
         tracking_loss, control_loss, estimation_loss = c_final
         l2_penalty = tree_normsq((meta_params['W'], meta_params['b']))
-        loss = (tracking_loss
+        loss = (  tracking_error*tracking_loss
                 + regularizer_ctrl*control_loss
                 + regularizer_error*estimation_loss
                 + regularizer_l2*l2_penalty) / normalizer
@@ -481,12 +485,12 @@ if __name__ == "__main__":
 
     @partial(jax.jit, static_argnums=(5, 6))
     def step(idx, opt_state, ensemble_params, t_knots, coefs, T, dt,
-             regularizer_l2, regularizer_ctrl, regularizer_error):
+             regularizer_l2, regularizer_ctrl, regularizer_error, tracking_error):
         """TODO: docstring."""
         meta_params = get_params(opt_state)
         grads, aux = jax.grad(loss, argnums=0, has_aux=True)(
             meta_params, ensemble_params, t_knots, coefs, T, dt,
-            regularizer_l2, regularizer_ctrl, regularizer_error
+            regularizer_l2, regularizer_ctrl, regularizer_error, tracking_error
         )
         opt_state = update_opt(idx, grads, opt_state)
         return opt_state, aux
@@ -498,11 +502,12 @@ if __name__ == "__main__":
     regularizer_l2 = hparams['meta']['regularizer_l2']
     regularizer_ctrl = hparams['meta']['regularizer_ctrl']
     regularizer_error = hparams['meta']['regularizer_error']
+    tracking_error = hparams['meta']['tracking_error']
     start = time.time()
     _ = step(0, opt_state, train_ensemble, train_t_knots, train_coefs, T, dt,
-             regularizer_l2, regularizer_ctrl, regularizer_error)
+             regularizer_l2, regularizer_ctrl, regularizer_error, tracking_error)
     _ = loss(meta_params, valid_ensemble, valid_t_knots, valid_coefs, T, dt,
-             0., 0., 0.)
+             0., 0., 0., tracking_error)
     end = time.time()
     print('done ({:.2f} s)! Now training ...'.format(
           end - start))
@@ -519,7 +524,7 @@ if __name__ == "__main__":
         opt_state, train_aux = step(
             step_idx, opt_state,
             train_ensemble, train_t_knots, train_coefs,
-            T, dt, regularizer_l2, regularizer_ctrl, regularizer_error
+            T, dt, regularizer_l2, regularizer_ctrl, regularizer_error, tracking_error
         )
         new_meta_params = get_params(opt_state)
 
@@ -527,7 +532,7 @@ if __name__ == "__main__":
         valid_loss, valid_aux = loss(
             new_meta_params, valid_ensemble,
             valid_t_knots, valid_coefs,
-            T, dt, 0., regularizer_ctrl, 0.
+            T, dt, 0., 0., 0., tracking_error
         )
 
         # Check if the validation loss has improved
@@ -536,6 +541,7 @@ if __name__ == "__main__":
             best_loss = valid_loss
             best_idx = step_idx
             patience_counter = 0  # Reset the counter since we saw improvement
+            jax.debug.print('best_idx: {best_idx}', best_idx=best_idx)
         else:
             patience_counter += 1  # No improvement; increment the counter
 
@@ -546,10 +552,16 @@ if __name__ == "__main__":
                 f"best_loss = {best_loss:.6f}, best_idx = {best_idx:.6f}"
             )
         
-        # If we have not seen any improvement for a certain number of steps, stop early
+        # If we have not seen any improvement for a certain number of steps, ask the user
         if patience_counter >= patience:
-            print(f"No improvement over {patience} steps, stopping early at step {step_idx}")
-            break
+            user_input = input(f"No improvement over {patience} steps. Do you want to stop early at step {step_idx}? (yes/no): ").strip().lower()
+            if user_input == 'yes':
+                print(f"Stopping early at step {step_idx}. Saving the best step index.")
+                break
+            else:
+                print("Continuing training...")
+                # Reset the patience counter if we have seen improvement
+                patience_counter = 60
 
         step_idx += 1
 

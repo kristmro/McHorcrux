@@ -334,4 +334,16 @@ def second_order_loads(t, heading, wl: WaveLoad):
     return tau_sv
 
 def wave_load(t, eta, wl: WaveLoad):
+    """ 
+    Computes the wave load for a given time t and state eta.
+    The function combines first-order and second-order wave loads.
+    Parameters:
+      t: jnp.ndarray — time instances.
+      eta: jnp.ndarray — state vector (e.g., vessel position and orientation).
+      wl: WaveLoad — the wave load object containing all necessary parameters.
+    Returns:
+        jnp.ndarray — the computed wave load vector.
+    Note: Because we only care about x,y,yaw position, this accepts 6DOF and 3DOF eta's,
+          but the return will be in 6DOF.     
+    """
     return first_order_loads(t, eta, wl) + second_order_loads(t, eta[-1], wl)

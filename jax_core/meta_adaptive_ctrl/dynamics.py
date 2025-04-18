@@ -30,7 +30,8 @@ def prior_6dof(q, dq):
 def plant(q, dq, u, f_ext, prior=prior_3dof):
     M, D, G, R = prior(q, dq)
     ddq = jax.scipy.linalg.solve(M, six2threeDOF(f_ext) + R @ u - D @ dq - G @ q, assume_a='pos')
-    return ddq
+    dq = R @ dq
+    return dq, ddq
 
 # def plant_6dof(q, dq, u, f_ext, prior=prior_6dof):
 #     M, D, G, R, J = prior(q, dq)
@@ -52,7 +53,7 @@ def disturbance(wave_parm, key, N=15,
     wave_dir = jnp.deg2rad(wave_dir)
     wave_angles = jnp.ones(N) * wave_dir
 
-    # Initialize wave load using the new, jit-compatible init function.
+    # Initialize wave load using jit-compatible init function.
     wl = init_wave_load(
         wave_amps=wave_amps,
         freqs=omega,
