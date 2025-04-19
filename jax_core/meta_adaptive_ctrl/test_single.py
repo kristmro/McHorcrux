@@ -11,6 +11,7 @@ import os
 import argparse
 import time
 import numpy as np
+from functools import partial
 
 # Parse command line arguments
 parser = argparse.ArgumentParser()
@@ -78,11 +79,11 @@ if __name__ == "__main__":
     seed, M, ctrl_pen, act, test_act = 7, 10, 3, 'off', 'off'
 
     # Sampled-time simulator
-    @jax.tree_util.Partial(jax.jit, static_argnums=(3,))
+    @partial(jax.jit, static_argnums=(3,))
     def simulate(ts, w, params, reference,
                  plant=plant, prior=prior_3dof, disturbance=wave_load):
         """TODO: docstring."""
-        thruster_config = get_default_config()
+        # thruster_config = get_default_config()
         # Required derivatives of the reference trajectory
         def ref_derivatives(t):
             ref_vel = jax.jacfwd(reference)
@@ -90,6 +91,7 @@ if __name__ == "__main__":
             r = reference(t)
             dr = ref_vel(t)
             ddr = ref_acc(t)
+            ddr = jnp.nan_to_num(ddr, nan=0.)
             return r, dr, ddr
 
         # Adaptation law
@@ -131,7 +133,7 @@ if __name__ == "__main__":
 
         # Simulation loop
         def loop(carry, input_slice):
-            t_prev, q_prev, dq_prev, u_prev, A_prev, dA_prev, alpha_prev, u_f_prev = carry
+            t_prev, q_prev, dq_prev, u_prev, A_prev, dA_prev = carry
             t = input_slice
             qs, dqs = odeint(ode, (q_prev, dq_prev), jnp.array([t_prev, t]),
                              u_prev)
@@ -146,23 +148,23 @@ if __name__ == "__main__":
             f_hat = A @ y
             u, τ = controller(q, dq, r, dr, ddr, f_hat)
 
-            # Thuster saturationD
-            u_sat, alpha = allocate_with_config(
-                u, 
-                thruster_config, 
-                DEFAULT_THRUST_MAX, 
-                DEFAULT_THRUST_MIN
-            )
+            # # Thuster saturationD
+            # u_sat, alpha = allocate_with_config(
+            #     u, 
+            #     thruster_config, 
+            #     DEFAULT_THRUST_MAX, 
+            #     DEFAULT_THRUST_MIN
+            # )
             
-            u_rate_sat, alpha_rate_sat = saturate_rate(
-                u_sat, alpha, u_f_prev, alpha_prev, 
-                DEFAULT_DT, DEFAULT_N_DOT_MAX, DEFAULT_ALPHA_DOT_MAX
-            )
+            # u_rate_sat, alpha_rate_sat = saturate_rate(
+            #     u_sat, alpha, u_f_prev, alpha_prev, 
+            #     DEFAULT_DT, DEFAULT_N_DOT_MAX, DEFAULT_ALPHA_DOT_MAX
+            # )
             
-            u_aft = map_to_3dof(u_rate_sat, alpha_rate_sat, thruster_config)
+            # u_aft = map_to_3dof(u_rate_sat, alpha_rate_sat, thruster_config)
                 
 
-            carry = (t, q, dq, u, A, dA, alpha, u_rate_sat)
+            carry = (t, q, dq, u, A, dA)
             output_slice = (q, dq, u, τ, r, dr)
             return carry, output_slice
 
@@ -174,10 +176,10 @@ if __name__ == "__main__":
         A0 = jnp.zeros((q0.size, y0.size))
         f0 = A0 @ y0
         u0, τ0 = controller(q0, dq0, r0, dr0, ddr0, f0)
-        alpha0 = jnp.zeros(6)
-        u_f0 = jnp.zeros(6)
+        # alpha0 = jnp.zeros(6)
+        # u_f0 = jnp.zeros(6)
         # Run simulation loop
-        carry = (t0, q0, dq0, u0, A0, dA0, alpha0, u_f0)
+        carry = (t0, q0, dq0, u0, A0, dA0)
         carry, output = jax.lax.scan(loop, carry, ts[1:])
         q, dq, u, τ, r, dr = output
 

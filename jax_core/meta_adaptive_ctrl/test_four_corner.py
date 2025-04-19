@@ -170,7 +170,7 @@ def ref(t):
 if __name__ == "__main__":
     print('Testing ... ', flush=True)
     start = time.time()
-    seed, M, ctrl_pen, act, test_act = 7, 10, 3, 'off', 'off'
+    seed, M, ctrl_pen, act, test_act = 7, 20, 3, 'off', 'off'
 
     # Sampled-time simulator
     @jax.tree_util.Partial(jax.jit, static_argnums=(3,))

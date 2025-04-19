@@ -18,65 +18,29 @@ from jax.example_libraries import optimizers
 from tqdm.auto import tqdm
 from functools import partial
 
-# # Parse command line arguments
-# parser = argparse.ArgumentParser()
-# parser.add_argument('seed', help='seed for pseudo-random number generation',
-#                     type=int)
-# parser.add_argument('M', help='number of trajectories to sub-sample',
-#                     type=int)
-# parser.add_argument('--use_x64', help='use 64-bit precision',
-#                     action='store_true')
-# args = parser.parse_args()
+# Parse command line arguments
+parser = argparse.ArgumentParser()
+parser.add_argument('seed', help='seed for pseudo-random number generation',
+                    type=int)
+parser.add_argument('M', help='number of trajectories to sub-sample',
+                    type=int)
+parser.add_argument('--use_x64', help='use 64-bit precision',
+                    action='store_true')
+args = parser.parse_args()
 
-# # Set precision
-# if args.use_x64:
-#     jax.config.update('jax_enable_x64', True)
+# Set precision
+if args.use_x64:
+    os.environ['JAX_ENABLE_X64'] = 'True'
 
-from jax_core.thruster_allocation.psudo import (
-    create_thruster_config, allocate_with_config, saturate_rate, map_to_3dof,
-    get_default_config, DEFAULT_THRUST_MAX, DEFAULT_THRUST_MIN, DEFAULT_DT,
-    DEFAULT_N_DOT_MAX, DEFAULT_ALPHA_DOT_MAX
-)
+# from jax_core.thruster_allocation.psudo import (
+#     create_thruster_config, allocate_with_config, saturate_rate, map_to_3dof,
+#     get_default_config, DEFAULT_THRUST_MAX, DEFAULT_THRUST_MIN, DEFAULT_DT,
+#     DEFAULT_N_DOT_MAX, DEFAULT_ALPHA_DOT_MAX
+# )
 from jax_core.meta_adaptive_ctrl.dynamics import prior_3dof as prior                        
-from jax_core.utils import (odeint_fixed_step, rk38_step, epoch,   
-                   params_to_cholesky, params_to_posdef, tree_normsq,
-                   random_ragged_spline, spline)
-from jax_core.utils import mat_to_svec_dim
+from jax_core.utils import (odeint_fixed_step, rk38_step, epoch, tree_normsq,random_ragged_spline, spline, vec_to_posdef_diag_cholesky)
 
-def diag_chol_indices(n):
-    """
-    Return the indices in the length‐d Cholesky‐parameter vector
-    corresponding to the diagonal of an n×n L.
 
-    For n=3, this returns [0,2,5], since the param order is
-        [L00, L10, L11, L20, L21, L22].
-    """
-    return jnp.array([i * (i+1)//2 + i for i in range(n)], dtype=int)
-
-def vec_to_posdef_diag_cholesky(v):
-    """
-    Build a *purely diagonal* PD matrix X from an unconstrained vector v∈ℝⁿ
-    by embedding it into the Cholesky‐parametrization and reusing params_to_posdef.
-
-    Internally:
-      • full = zeros(d) with d = n(n+1)/2
-      • full[idxs] = v/2    # see note below
-      • L = params_to_cholesky(full)  # exponentiates diag(full)
-      • X = L @ L.T
-
-    Because full[i*(i+1)/2 + i] = v_i/2, L_ii = exp(v_i/2), so X_ii = exp(v_i).
-
-    Off‐diagonal slots of full remain zero ⇒ L_ij=0 for i≠j ⇒ X is exactly diagonal.
-    """
-    v = jnp.atleast_1d(v)
-    n = v.shape[-1]
-    d = mat_to_svec_dim(n)                # = n(n+1)/2
-    idxs = diag_chol_indices(n)           # which param‑vector slots are diag
-    full = jnp.zeros(v.shape[:-1] + (d,), dtype=v.dtype)
-    # scatter half‐logs so that X_ii = exp(v_i)
-    full = full.at[..., idxs].set(v/2)
-    # now call your existing reparam → PD
-    return params_to_posdef(full)
 
 
 
@@ -87,16 +51,13 @@ else:
     print("JAX is using CPU")
 
 # Initialize PRNG key
-argsseed = 7
-key = jax.random.PRNGKey(argsseed)
-argsM=10
-argsuse_x64 = True
-jax.config.update('jax_enable_x64', True)
+key = jax.random.PRNGKey(args.seed)
+
 # Hyperparameters
 hparams = {
-    'seed':        argsseed,     #
-    'use_x64':     argsuse_x64,  #
-    'num_subtraj': argsM,        # number of trajectories to sub-sample
+    'seed':        args.seed,     #
+    'use_x64':     args.use_x64,  #
+    'num_subtraj': args.M,        # number of trajectories to sub-sample
 
     # For training the model ensemble
     'ensemble': {
@@ -106,7 +67,7 @@ hparams = {
         'batch_frac':     0.25,  # fraction of training data per batch
         'regularizer_l2': 1e-4,  # coefficient for L2-regularization
         'learning_rate':  1e-2,  # step size for gradient optimization
-        'num_epochs':     1000,  # number of epochs
+        'num_epochs':     1500,  # number of epochs
     },
     # For meta-training
     'meta': {
@@ -114,14 +75,14 @@ hparams = {
         'hdim':              32,         # number of hidden units per layer
         'train_frac':        0.75,       #
         'learning_rate':     1e-2,       # step size for gradient optimization
-        'num_steps':         1000,        # maximum number of gradient steps
+        'num_steps':         500,        # maximum number of gradient steps
         'regularizer_l2':    1e-4,       # coefficient for L2-regularization
-        'regularizer_ctrl':  0.8*1e-3,       #
+        'regularizer_ctrl':  5e-3,       #
         'regularizer_error': 0.,         #
         'tracking_error':    1000,       # coefficient for tracking error
         'T':                 12.,         # time horizon for each reference
         'dt':                1e-2,       # time step for numerical integration
-        'num_refs':          25,         # reference trajectories to generate
+        'num_refs':          30,         # reference trajectories to generate
         'num_knots':         6,          # knot points per reference spline
         'poly_orders':       (9, 9, 6),  # spline orders for each DOF
         'deriv_orders':      (4, 4, 2),  # smoothness objective for each DOF
@@ -555,7 +516,7 @@ if __name__ == "__main__":
 
     # Do gradient descent
     # Define early stopping parameters
-    patience = 100             # Number of steps without improvement to tolerate
+    patience = 300             # Number of steps without improvement to tolerate
     patience_counter = 0       # Counter for how many steps in a row without improvement
 
     # Do gradient descent with early stopping
@@ -592,16 +553,20 @@ if __name__ == "__main__":
                 f"best_loss = {best_loss:.6f}, best_idx = {best_idx:.6f}"
             )
         
-        # If we have not seen any improvement for a certain number of steps, ask the user
         if patience_counter >= patience:
-            user_input = input(f"No improvement over {patience} steps. Do you want to stop early at step {step_idx}? (yes/no): ").strip().lower()
-            if user_input == 'yes':
-                print(f"Stopping early at step {step_idx}. Saving the best step index.")
-                break
-            else:
-                print("Continuing training...")
-                # Reset the patience counter if we have seen improvement
-                patience_counter = 60
+            print(f"No improvement over {patience} steps. Stopping early.")
+            break
+        
+        # # If we have not seen any improvement for a certain number of steps, ask the user
+        # if patience_counter >= patience:
+        #     user_input = input(f"No improvement over {patience} steps. Do you want to stop early at step {step_idx}? (yes/no): ").strip().lower()
+        #     if user_input == 'yes':
+        #         print(f"Stopping early at step {step_idx}. Saving the best step index.")
+        #         break
+        #     else:
+        #         print("Continuing training...")
+        #         # Reset the patience counter if we have seen improvement
+        #         patience_counter = 60
 
         step_idx += 1
 

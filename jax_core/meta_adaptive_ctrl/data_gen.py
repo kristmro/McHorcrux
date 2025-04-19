@@ -122,7 +122,7 @@ if __name__ == "__main__":
         wave_parm_single = (hs[i], tp[i], wave_dir[i])
         wl = disturbance(wave_parm_single, key)
         wl_list.append(wl)
-
+    
     # Stack list of WaveLoad PyTrees into a batched WaveLoad using tree_map.
     import jax.tree_util as tu
     wl_batched = tu.tree_map(lambda *x: jnp.stack(x), *wl_list)

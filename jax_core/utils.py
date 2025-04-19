@@ -1,7 +1,7 @@
 """
 utils.py
 
-Author: Kristian Magnus Roen
+Author: Kristian Magnus Roen, Spencer M. Richards
 Date:   2025-03-17
 """
 import jax
@@ -11,8 +11,7 @@ from functools import partial
 from jax.scipy.linalg import block_diag
 from jax.flatten_util import ravel_pytree
 # ---------------------------------------------------------------------------
-# 1) Helpers for angles, "to_positive_angle", "pipi", etc.
-#    You can keep your original Python definitions but replace np with jnp:
+# Helpers for angles and DOF conversions
 # ---------------------------------------------------------------------------
 def to_positive_angle(angle):
     """
@@ -20,11 +19,13 @@ def to_positive_angle(angle):
     """
     return jnp.where(angle < 0, angle + 2*jnp.pi, angle)
 
+
 def pipi(angle):
     """
     Force angle into [-pi, pi).
     """
     return jnp.mod(angle + jnp.pi, 2*jnp.pi) - jnp.pi
+
 
 def three2sixDOF(v):
     """
@@ -73,6 +74,7 @@ def three2sixDOF(v):
     else:
         raise ValueError("Input v must be a 1D or 2D array.")
 
+
 def six2threeDOF(v):
     """
     Convert a 6DOF vector or matrix to 3DOF.
@@ -116,6 +118,7 @@ def Rx(phi):
                       [0,  c, -s],
                       [0,  s,  c]], dtype=jnp.float32)
 
+
 def Ry(theta):
     """Return the 3x3 rotation matrix about the y-axis by angle theta."""
     c = jnp.cos(theta)
@@ -123,6 +126,7 @@ def Ry(theta):
     return jnp.array([[ c, 0, s],
                       [ 0, 1, 0],
                       [-s, 0, c]], dtype=jnp.float32)
+
 
 def Rz(psi):
     """Return the 3x3 rotation matrix about the z-axis by angle psi."""
@@ -132,10 +136,12 @@ def Rz(psi):
                       [s,  c, 0],
                       [0,  0, 1]])
 
+
 def Rzyx(eta):
     """ Full roation matrix"""
     phi, theta, psi = eta[3], eta[4], eta[5]
     return Rz(psi) @ Ry(theta) @ Rx(phi)
+
 
 def Tzyx(eta):
     phi, theta, psi = eta[3], eta[4], eta[5]
@@ -144,6 +150,7 @@ def Tzyx(eta):
         [0, jnp.cos(phi), -jnp.sin(phi)],
         [0, jnp.sin(phi)/jnp.cos(theta), jnp.cos(phi)/jnp.cos(theta)]
     ])
+
 
 def J(eta):
     """6 DOF rotation matrix."""
@@ -154,17 +161,14 @@ def J(eta):
         [jnp.zeros((3, 3)), Tzyx(eta)]
     ])
 
-
-
 # --------------------------------------------------------------------------
 # ODE solver
 # --------------------------------------------------------------------------
 """
 Utility functions for integrating ODEs.
 
-Author: Kristian Magnus Roen, Spencer M. Richards
+Author: Spencer M. Richards, Kristian Magnus Roen
 """
-
 def rk4_step_impl(x, dt, f, *args):
     k1 = f(x, *args)
     k2 = f(x + 0.5 * dt * k1, *args)
@@ -172,6 +176,7 @@ def rk4_step_impl(x, dt, f, *args):
     k4 = f(x + dt * k3, *args)
     return x + (dt / 6.0) * (k1 + 2 * k2 + 2 * k3 + k4)
 rk4_step = jax.jit(rk4_step_impl, static_argnums=(2,))
+
 
 @partial(jax.jit, static_argnums=(0,))
 def rk38_step(func, h, x, t, *args):
@@ -252,9 +257,7 @@ def odeint_fixed_step(func, x0, t0, t1, step_size, *args):
 """
 Utility functions for handling data and parameters.
 
-Author: Spencer M. Richards
-        Autonomous Systems Lab (ASL), Stanford
-        (GitHub: spenrich)
+Author: Spencer M. Richards, Kristian Magnus Roen
 """
 def epoch(key, data, batch_size, batch_axis=0, ragged=False):
     """Generate batches to form an epoch over a data set."""
@@ -394,6 +397,44 @@ def params_to_posdef(params):
     LT = jnp.swapaxes(L, -2, -1)
     X = L @ LT
     return X
+
+
+def diag_chol_indices(n):
+    """
+    Return the indices in the length‐d Cholesky‐parameter vector
+    corresponding to the diagonal of an n×n L.
+
+    For n=3, this returns [0,2,5], since the param order is
+        [L00, L10, L11, L20, L21, L22].
+    """
+    return jnp.array([i * (i+1)//2 + i for i in range(n)], dtype=int)
+
+
+def vec_to_posdef_diag_cholesky(v):
+    """
+    Build a *purely diagonal* PD matrix X from an unconstrained vector v∈ℝⁿ
+    by embedding it into the Cholesky‐parametrization and reusing params_to_posdef.
+
+    Internally:
+      • full = zeros(d) with d = n(n+1)/2
+      • full[idxs] = v/2    # see note below
+      • L = params_to_cholesky(full)  # exponentiates diag(full)
+      • X = L @ L.T
+
+    Because full[i*(i+1)/2 + i] = v_i/2, L_ii = exp(v_i/2), so X_ii = exp(v_i).
+
+    Off‐diagonal slots of full remain zero ⇒ L_ij=0 for i≠j ⇒ X is exactly diagonal.
+    """
+    v = jnp.atleast_1d(v)
+    n = v.shape[-1]
+    d = mat_to_svec_dim(n)                # = n(n+1)/2
+    idxs = diag_chol_indices(n)           # which param‑vector slots are diag
+    full = jnp.zeros(v.shape[:-1] + (d,), dtype=v.dtype)
+    # scatter half‐logs so that X_ii = exp(v_i)
+    full = full.at[..., idxs].set(v/2)
+    # now call your existing reparam → PD
+    return params_to_posdef(full)
+
 
 # --------------------------------------------------------------------------
 # pytree
