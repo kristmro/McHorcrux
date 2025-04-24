@@ -5,7 +5,8 @@ This repository contains **three distinct simulation and control frameworks** de
 
 ### 1. `jax_core/`
 A high-performance, differentiable pipeline based on [JAX](https://github.com/jax-ml/jax) and adapted from the [mcsimpy](https://github.com/NTNU-MCS/mcsimpy) simulator. It provides **significantly enhanced computational speed** and memory efficiency, making it ideal for large-scale or repeated simulations and extensive machine learning applications. This core also features an adapted marine-focused version of the meta-trained adaptive controller from [Richards et al. (2021)](https://github.com/StanfordASL/Adaptive-Control-Oriented-Meta-Learning/tree/master).
-        TODO: 
+
+        TODO:
         - make a demo for how to use the controller
         - make the correct .sh file to pipeline the training and testing for reproduction.
         - Correct the readme file
@@ -13,12 +14,14 @@ A high-performance, differentiable pipeline based on [JAX](https://github.com/ja
 
 ### 2. `numpy_core/`
 Features a highly modular Gym environment called **McGym**, complete with live visualization capabilities, built around the standard [mcsimpy](https://github.com/NTNU-MCS/mcsimpy) simulator. McGym follows an API structure similar to [OpenAI's Gym](https://github.com/openai/gym), offering standardized tasks and the flexibility to define custom scenarios, including dynamic or static obstacles influenced by wave motions. Ideal for **Monte Carlo simulations** or for real-time testing of custom controllers.
+
         TODO: -
         - make demo for mcgym
         - Correct the readme file
 
 ### 3. `torch_core/`
 A [PyTorch](https://github.com/pytorch/pytorch)-powered variant of the [mcsimpy](https://github.com/NTNU-MCS/mcsimpy) simulator designed explicitly for machine learning integration. Leveraging PyTorch’s extensive ML modules, this core excels in **reinforcement learning (RL)** and sophisticated ML-driven controller implementations, fully harnessing McGym's capabilities.
+
         TODO: 
         - make demo for mcgym
         - Correct the readme file
@@ -26,6 +29,7 @@ A [PyTorch](https://github.com/pytorch/pytorch)-powered variant of the [mcsimpy]
 ---
 TODO: 
 - add a gif of mcgym own defined, and predefined tasks.
+- add results
 
 ## Installation & Requirements
 
