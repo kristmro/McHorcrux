@@ -31,7 +31,7 @@ TODO:
 - add a gif of mcgym own defined, and predefined tasks.
 - add results
 
-![Four-corner DP Test](figures/4corner_dp_torch.gif)
+![Four-corner DP Test](figures/demo_gifs/4corner_dp_torch.gif)
 
 
 ## Installation & Requirements
