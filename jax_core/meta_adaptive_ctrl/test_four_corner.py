@@ -170,7 +170,7 @@ def ref(t):
 if __name__ == "__main__":
     print('Testing ... ', flush=True)
     start = time.time()
-    seed, M, ctrl_pen, act, test_act = 7, 20, 3, 'off', 'off'
+    seed, M, ctrl_pen, act, test_act = 7, 20, 2, 'off', 'off'
 
     # Sampled-time simulator
     @jax.tree_util.Partial(jax.jit, static_argnums=(3,))
@@ -280,7 +280,7 @@ if __name__ == "__main__":
     # Choose wave parameters, fixed control gains, and simulation times
     num_dof = 3
     key = jax.random.PRNGKey(seed)
-    w = disturbance(jnp.array((6.*(1/90), 16*(1/90)**0.5, 0)), key)
+    w = disturbance(jnp.array((10.*(1/90), 20*(1/90)**0.5, 0)), key)
     λ, k, p = 1.0, 10.0, 10.0
     T, dt = T_sim, dt
     ts = jnp.arange(0, T + dt, dt)
