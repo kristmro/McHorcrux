@@ -31,8 +31,9 @@ TODO:
 - add a gif of mcgym own defined, and predefined tasks.
 - add results
 
-![Four-corner DP Test](figures/demo_gifs/4corner_dp_torch.gif)
-
+![Four-corner DP in Torch McGym](figures/demo_gifs/4corner_dp_torch.gif)
+![Static obstical and goal McGym](figures/demo_gifs/static_goal_obstical_mcgym.gif)
+![Dynamical obsticals and goal McGym](figures/demo_gifs/dynamic_goal_obstical_mcgym.gif)
 
 ## Installation & Requirements
 
