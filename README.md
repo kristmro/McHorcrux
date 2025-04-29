@@ -27,13 +27,29 @@ A [PyTorch](https://github.com/pytorch/pytorch)-powered variant of the [mcsimpy]
         - Correct the readme file
         
 ---
-TODO: 
-- add a gif of mcgym own defined, and predefined tasks.
-- add results
+## Demonstrations
+
+Below are example runs showcasing the capabilities of our different McGym cores:
+
+#### Four-corner DP in Torch McGym  
+This GIF uses the **torch_core** version of McGym together with a custom `ModelController(nn.Module)`—a pure PyTorch controller that implements a PD law augmented by full model compensation. Because it’s built on `torch.nn`, you can seamlessly swap in learned networks, fine-tune gains via backpropagation, or integrate any other PyTorch module.
 
 ![Four-corner DP in Torch McGym](figures/demo_gifs/4corner_dp_torch.gif)
-![Static obstical and goal McGym](figures/demo_gifs/static_goal_obstical_mcgym.gif)
-![Dynamical obsticals and goal McGym](figures/demo_gifs/dynamic_goal_obstical_mcgym.gif)
+
+---
+
+#### Static Obstacle and Goal in NumPy McGym  
+Here the **numpy_core** McGym runs a static scenario: the vessel must navigate from its start point to a fixed goal while avoiding a stationary circular obstacle. The controller plans a path around the obstacle and holds final heading within the specified tolerance.  
+
+![Static obstacle and goal McGym](figures/demo_gifs/static_goal_obstical_mcgym.gif)
+
+---
+
+#### Dynamic Obstacles and Moving Goal in NumPy McGym  
+In this dynamic scenario (also using **numpy_core**), both the goal and obstacles move over time: the goal “wiggles” sinusoidally, and two circular obstacles follow independent trajectories. The controller continuously replans to track the moving goal however, it hits one of the obstacles, and the loop is then terminated.  
+
+![Dynamical obstacles and goal McGym](figures/demo_gifs/dynamic_goal_obstical_mcgym.gif)
+
 
 ## Installation & Requirements
 
