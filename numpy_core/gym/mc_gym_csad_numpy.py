@@ -241,6 +241,12 @@ class McGym:
         """Resets the environment and vessel state."""
         self.curr_sim_time = 0.0
 
+        # Initialize dynamic goal/obstacles at t=0
+        if self.goal_func is not None:
+            self.goal = self.goal_func(0.0)
+        if self.obstacle_func is not None:
+            self.obstacles = self.obstacle_func(0.0)
+
         north0, east0, heading_deg = self.start_position
         eta_start = three2sixDOF(
             np.array([north0, east0, np.deg2rad(heading_deg)])
@@ -460,28 +466,50 @@ class McGym:
                 print("Goal reached!")
                 return True, {"reason": "goal_reached"}
 
-            # 2) Check obstacle collisions (circle collision test on hull points)
+            # 2) Check obstacle collisions (circle–polygon collision)
             hull_local = self._get_boat_hull_local_pts()
             c, s = np.cos(boat_yaw), np.sin(boat_yaw)
             rot = np.array([[c, s], [-s, c]])
 
-            # Convert local hull to global points
+            # Build global hull polygon as a list of (north, east) points
             hull_global = []
-            for (lx, ly) in hull_local:
-                gx, gy = rot @ np.array([lx, ly])
-                gx_global = boat_pos[1] + gx  # east
-                gy_global = boat_pos[0] + gy  # north
-                hull_global.append(np.array([gx_global, gy_global]))
+            for lx, ly in hull_local:
+                dx, dy = rot @ np.array([lx, ly])
+                north_pt = boat_pos[0] + dy
+                east_pt  = boat_pos[1] + dx
+                hull_global.append((north_pt, east_pt))
 
-            for obs_n, obs_e, obs_size in self.obstacles:
+            # Close the polygon loop
+            if hull_global[0] != hull_global[-1]:
+                hull_global.append(hull_global[0])
+
+            # Check against every obstacle
+            for idx, (obs_n, obs_e, obs_size) in enumerate(self.obstacles):
+                obs_center = np.array([obs_n, obs_e])
                 obs_radius = obs_size / 2.0
-                for pt in hull_global:
-                    dist = np.linalg.norm(pt - np.array([obs_n, obs_e]))
-                    if dist < obs_radius:
-                        print("Collision with obstacle!")
-                        return True, {"reason": "collision"}
 
+                # --- 1) Vertex check ---
+                for v_n, v_e in hull_global:
+                    if np.hypot(v_n - obs_n, v_e - obs_e) < obs_radius:
+                        print(f"Collision with obstacle #{idx} at ({obs_n:.2f}, {obs_e:.2f}) via vertex!")
+                        return True, {"reason": "collision", "obstacle_index": idx}
+
+                # --- 2) Edge‐segment check ---
+                for i in range(len(hull_global) - 1):
+                    p1 = np.array(hull_global[i])
+                    p2 = np.array(hull_global[i + 1])
+                    seg = p2 - p1
+                    # project obstacle center onto the segment
+                    t = np.dot(obs_center - p1, seg) / np.dot(seg, seg)
+                    t = np.clip(t, 0.0, 1.0)
+                    closest = p1 + t * seg
+                    if np.linalg.norm(obs_center - closest) < obs_radius:
+                        print(f"Collision with obstacle #{idx} at ({obs_n:.2f}, {obs_e:.2f}) via edge!")
+                        return True, {"reason": "collision", "obstacle_index": idx}
+
+            # no collision detected
             return False, {}
+
         else:
             
             return True, {"reason": "No goal or four_corner_test initiated breaking the environment"}
@@ -508,8 +536,6 @@ class McGym:
             "goal": self.goal,
             "obstacles": self.obstacles,
             "wave_conditions": self.wave_conditions,
-
-
         }
 
     def render(self):
