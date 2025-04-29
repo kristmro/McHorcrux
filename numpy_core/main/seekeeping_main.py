@@ -15,9 +15,35 @@ def main():
         new_north = north0 + 1.0 * np.sin(0.2 * t)
         new_east  = east0  + 0.5 * np.cos(0.1 * t)
         return (new_north, new_east, size0)
+    def obstacle_func(t):
+        """
+        Returns a list of moving obstacles for time t.
+        In this example, one obstacle circles around (2,7) with radius 1m,
+        and another slides back and forth along the east axis.
+        """
+        # Obstacle 1: circular motion around (2, 7)
+        center_n, center_e = 2.0, 7.0
+        radius = 1.0
+        omega1 = 0.2  # angular speed [rad/s]
+        obs1_n = center_n + radius * np.cos(omega1 * t)
+        obs1_e = center_e + radius * np.sin(omega1 * t)
+        
+        # Obstacle 2: sinusoidal east–west motion at fixed north = 4
+        base_n = 4.0
+        amp = 1.5
+        omega2 = 0.1
+        obs2_n = base_n
+        obs2_e = 10.0 + amp * np.sin(omega2 * t)
+        
+        # All obstacles have diameter 1.0
+        diameter = 1.0
+        
+        return [
+            (obs1_n, obs1_e, diameter),
+            (obs2_n, obs2_e, diameter)
+        ]
 
-    # No moving obstacles in this example
-    obstacle_func = None
+
 
     # Simulation time step
     dt = 0.08 
@@ -52,7 +78,7 @@ def main():
         start_position=start_pos,
         goal=initial_goal,
         wave_conditions=wave_conditions,
-        obstacles=initial_obstacles,                # or use initial_obstacles if you want obstacles
+        obstacles=None,                # or use initial_obstacles if you want obstacles
         goal_func=None,           # or None if you don’t want a moving goal
         obstacle_func=obstacle_func,   # or None for static obstacles
         position_tolerance=0.5,
