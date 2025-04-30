@@ -145,7 +145,7 @@ if __name__ == "__main__":
         plot_best_index(
             results_root="data/training_results",
             act="off",
-            ctrl_pen=3, # Example value, adjust as needed
+            ctrl_pen=1, # Example value, adjust as needed
             figsize=(10, 5),
             cmap="viridis",
             save_to_figures=True

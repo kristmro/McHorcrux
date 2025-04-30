@@ -79,7 +79,7 @@ def _set_matplotlib_defaults():
 # Helper utilities
 ###############################################################################
 
-ROOT_RESULTS = Path("data/testing_results/all/act_off/ctrl_pen_2")
+ROOT_RESULTS = Path("data/testing_results/all/act_off/ctrl_pen_1")
 FIG_DIR = Path("figures")
 
 
@@ -263,9 +263,9 @@ def main():
     _set_matplotlib_defaults()
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--seed-range", type=str, default="6:9",
+    parser.add_argument("--seed-range", type=str, default="10",
                         help="range of seeds, e.g. '0:3' or '0,1,2'")
-    parser.add_argument("--Ms", type=str, default="2,5,10,20",
+    parser.add_argument("--Ms", type=str, default="10,20",
                         help="comma‑separated list of M values")
     parser.add_argument("--no-figure3", action="store_true",
                         help="skip the (optional) single‑trajectory figure")

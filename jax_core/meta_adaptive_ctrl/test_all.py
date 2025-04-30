@@ -270,7 +270,7 @@ if __name__ == '__main__':
 
     # Our method with meta-learned gains
     print('meta trained adaptive ctrl ...', flush=True)
-    filename = os.path.join('data', 'training_results', 'act_off','ctrl_pen_3',
+    filename = os.path.join('data', 'training_results', 'act_off','ctrl_pen_1',
                             'seed={}_M={}.pkl'.format(hparams['seed'],
                                                       hparams['num_subtraj']))
     with open(filename, 'rb') as file:
@@ -340,9 +340,9 @@ if __name__ == '__main__':
 
     # Save
     # Make sure the output directory exists
-    os.makedirs('data/testing_results/all/act_off/ctrl_pen_3', exist_ok=True)
+    os.makedirs('data/testing_results/all/act_off/ctrl_pen_1', exist_ok=True)
     output_filename = os.path.join(
-        'data', 'testing_results', 'all', 'act_off', 'ctrl_pen_3',
+        'data', 'testing_results', 'all', 'act_off', 'ctrl_pen_1',
         'seed={:d}_M={:d}.pkl'.format(hparams['seed'], hparams['num_subtraj'])
     )
     with open(output_filename, 'wb') as file:
