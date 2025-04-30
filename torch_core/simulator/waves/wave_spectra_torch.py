@@ -29,7 +29,13 @@ class BaseSpectrum(ABC):
     """
     def __init__(self, freq, freq_hz=False):
         # Ensure freq is a torch float tensor
-        freq_t = torch.tensor(freq, dtype=torch.float32)
+        if isinstance(freq, torch.Tensor):
+            # Use recommended way to copy construct from a tensor
+            freq_t = freq.detach().clone().to(dtype=torch.float32)
+        else:
+            # Original way for non-tensor inputs (list, numpy array, etc.)
+            freq_t = torch.tensor(freq, dtype=torch.float32)
+
         if freq_hz:
             freq_t = freq_t * (2.0 * math.pi)  # convert Hz -> rad/s
         self._freq = freq_t

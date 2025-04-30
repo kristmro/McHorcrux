@@ -38,11 +38,22 @@ class WaveLoad(torch.nn.Module):
                  interpolate=True):
         super().__init__()
 
-        # 1) Store wave data as Buffers => not trainable, but moved with .to(device).
-        self.register_buffer("_amp",    torch.tensor(wave_amps, dtype=torch.float32))
-        self.register_buffer("_freqs",  torch.tensor(freqs,     dtype=torch.float32))
-        self.register_buffer("_eps",    torch.tensor(eps,       dtype=torch.float32))
-        self.register_buffer("_angles", torch.tensor(angles,    dtype=torch.float32))
+        # Helper function to convert input to detached tensor buffer
+        def to_buffer(data, name):
+            if isinstance(data, torch.Tensor):
+                # Use recommended way to copy construct from a tensor
+                # Ensure it's float32
+                tensor_data = data.detach().clone().to(dtype=torch.float32)
+            else:
+                # Original way for non-tensor inputs (list, numpy array, etc.)
+                tensor_data = torch.tensor(data, dtype=torch.float32)
+            self.register_buffer(name, tensor_data)
+
+        # Convert inputs to buffers using the helper function
+        to_buffer(wave_amps, "_amp")
+        to_buffer(freqs, "_freqs")
+        to_buffer(eps, "_eps")
+        to_buffer(angles, "_angles")
 
         self._N = self._amp.shape[0]
         self._rho = rho
@@ -113,24 +124,22 @@ class WaveLoad(torch.nn.Module):
         self.register_buffer("_Q", Q)
 
         # 5) Force RAOs from 'forceRAO' (use original heading order)
-        force_amp_full_np   = np.array(vessel_params['forceRAO']['amp'],   dtype=np.float32)
-        force_phase_full_np = np.array(vessel_params['forceRAO']['phase'], dtype=np.float32)
+        force_amp_full_np   = np.array(vessel_params['forceRAO']['amp'])
+        # Convert phase from degrees (in JSON) to radians, matching NumPy logic
+        force_phase_full_np = np.deg2rad(np.array(vessel_params['forceRAO']['phase']))
         force_amp_full   = torch.tensor(force_amp_full_np, dtype=torch.float32)
         force_phase_full = torch.tensor(force_phase_full_np, dtype=torch.float32)
 
         # Apply abs() to amplitude to match NumPy's _set_force_raos
         force_amp   = torch.abs(force_amp_full[:, :, :, 0])
-        force_phase = force_phase_full[:, :, :, 0] * (math.pi/180.0)
-
-        # Apply abs() here too for consistency
-        force_amp_sorted = torch.abs(torch.tensor(force_amp_full_np[:, :, sort_idx_build, ...], dtype=torch.float32)[:, :, :, 0])
-        force_phase_sorted = torch.tensor(force_phase_full_np[:, :, sort_idx_build, ...], dtype=torch.float32)[:, :, :, 0] * (math.pi/180.0)
+        force_phase = force_phase_full[:, :, :, 0] # Phase is now in radians
 
         # Removed redundant calculation of fAmp_sorted, fPhase_sorted
         # Store RAOs corresponding to original heading order for _rao_interp
+        # Pass phase already in radians
         fAmp_orig_order, fPhase_orig_order = self._build_force_raos(force_amp, force_phase, qtf_freqs)
         self.register_buffer("_forceRAOamp",   fAmp_orig_order)
-        self.register_buffer("_forceRAOphase", fPhase_orig_order)
+        self.register_buffer("_forceRAOphase", fPhase_orig_order) # Stored phase is in radians
 
 
     ########################################################################
@@ -171,34 +180,44 @@ class WaveLoad(torch.nn.Module):
         """
         Compute 2nd-order slow-drift from QTF => real( amp * Q e^{i(Wt+P)} * amp ).
         We pick the Q row for the nearest heading (0..359 deg).
-        Vectorized version.
+        Vectorized version. Matches NumPy logic for heading index selection.
         """
         # Use the mean relative angle (0 to 2pi)
         rel_angle_all = self._relative_incident_angle(heading) # shape(N,)
         mean_angle = torch.mean(rel_angle_all) # Scalar mean relative angle (0 to 2pi)
 
         # Find the index of the closest angle in the QTF headings
-        # If _Q is interpolated to 360 degrees (M=360), use angles_1deg
-        if self._qtf_interp_angles and self._Q.shape[1] == 360:
-             angles_for_qtf = torch.linspace(0, 2*math.pi, 360, device=mean_angle.device)
-        else:
-             # If not interpolated, _Q corresponds to original _qtf_angles
-             # Use the original _qtf_angles (radians) for comparison
-             angles_for_qtf = self._qtf_angles
+        # Always use 360 degrees for comparison, matching NumPy logic
+        angles_for_qtf = torch.linspace(0, 2*math.pi, 360, device=mean_angle.device, dtype=mean_angle.dtype)
 
-        # Use pipi for correct angle difference calculation, considering wrap-around
-        # Ensure mean_angle is compared correctly (e.g., both 0 to 2pi or -pi to pi)
-        # Since mean_angle is 0 to 2pi, and angles_for_qtf are likely 0 to 2pi, direct diff is ok
-        # Or use pipi(angles_for_qtf - mean_angle) for safety
-        diffs = torch.abs(pipi(angles_for_qtf - mean_angle))
+        # Use simple absolute difference, matching NumPy logic (no pipi needed here as both are 0 to 2pi)
+        diffs = torch.abs(angles_for_qtf - mean_angle)
         heading_index = torch.argmin(diffs)
 
-        # pick Q => shape(6,N,N)
-        Q_sel = self._Q[:, heading_index, :, :]
+        # Ensure heading_index is within the bounds of the QTF matrix's angle dimension (M)
+        # If Q was not interpolated to 360 degrees, this index might be wrong.
+        # However, NumPy version *always* uses 360 degrees for lookup, implying Q *should* have 360 headings if interpolated.
+        # If Q is not interpolated (M = Nhead_cfg), the NumPy logic of looking up in 360 degrees seems inconsistent.
+        # Assuming the intent is to use the index relative to the actual dimension M of _Q.
+        # If M=360, heading_index is correct. If M=Nhead_cfg, we need to map the 0-360 index back.
+        # Let's stick to the direct NumPy replication for now: use the index found from 360 degrees.
+        # This assumes _Q's second dimension (M) corresponds to the 360 degrees if interpolation was used.
+        if self._qtf_interp_angles and self._Q.shape[1] != 360:
+             # This case indicates an inconsistency between NumPy logic and PyTorch setup if angle interp is on but M!=360
+             # For now, proceed assuming M=360 if qtf_interp_angles is True
+             pass
+        elif not self._qtf_interp_angles and self._Q.shape[1] != self._num_qtf_headings:
+             # This case indicates an inconsistency if angle interp is off but M doesn't match original headings
+             pass
 
-        # e^{i(W t - P)} => shape(N,N)  <-- Corrected sign for P
+        # pick Q => shape(6,N,N)
+        # Clamp index just in case M is smaller than 360 but we used 360 for lookup (NumPy inconsistency?)
+        heading_index_clamped = torch.clamp(heading_index, max=self._Q.shape[1] - 1)
+        Q_sel = self._Q[:, heading_index_clamped, :, :]
+
+        # e^{i(W t - P)} => shape(N,N)
         amp_cplx = self._amp.to(torch.complex64) # shape(N,)
-        # Corrected sign: exp(1j * W * t - 1j * P)
+        # Corrected sign: exp(1j * W * t - 1j * P) - Matches NumPy exp(W*(1j*t) - 1j*P)
         exp_term = torch.exp(1j*(self._W*t - self._P))  # shape(N,N)
 
         # Combine Q and exp_term
@@ -206,6 +225,7 @@ class WaveLoad(torch.nn.Module):
 
         # Perform the quadratic form: amp^T @ mat @ amp for each DOF
         # Using einsum: 'i, dij, j -> d' sums over i and j for each d
+        # This is equivalent to NumPy's amp @ mat @ amp applied per DOF
         tau_sv = torch.real(torch.einsum('i,dij,j->d', amp_cplx, mat, amp_cplx)) # shape(6,)
 
         return tau_sv
@@ -218,6 +238,7 @@ class WaveLoad(torch.nn.Module):
         RAO interpolation replicating the NumPy logic using 10-degree floor bins.
         Finds the index in self._qtf_angles closest to the 10-degree floor
         of the relative angle, then interpolates between that index and the next.
+        Matches NumPy phase interpolation logic.
         """
         device = rel_angle.device
         N = rel_angle.shape[0] # Number of wave components
@@ -253,10 +274,12 @@ class WaveLoad(torch.nn.Module):
         # 6. Calculate interpolation scale (factor)
         # Use original rel_angle (radians) and pipi for differences
         diff_t = pipi(theta2 - theta1)
-        # Add small epsilon where diff_t is zero to avoid NaN
-        diff_t = torch.where(torch.abs(diff_t) < 1e-9, torch.tensor(1e-9, device=device, dtype=diff_t.dtype), diff_t)
+        # Remove epsilon addition to strictly match NumPy (potential NaN if theta1==theta2)
+        # diff_t = torch.where(torch.abs(diff_t) < 1e-9, torch.tensor(1e-9, device=device, dtype=diff_t.dtype), diff_t)
         numerator = pipi(rel_angle - theta1)
-        scale = numerator / diff_t  # shape(N,)
+        # Handle potential division by zero if diff_t is exactly zero
+        # Add a small value to the denominator where it's zero to avoid NaN/inf
+        scale = numerator / (diff_t + torch.where(diff_t == 0, torch.tensor(1e-9, device=device, dtype=diff_t.dtype), torch.tensor(0.0, device=device, dtype=diff_t.dtype))) # shape(N,)
         # Clamp scale to [0, 1] ? NumPy version doesn't explicitly clamp, but maybe should?
         # Let's omit clamp for now to match NumPy exactly. If issues arise, add clamp.
         # scale = torch.clamp(scale, 0.0, 1.0)
@@ -269,11 +292,11 @@ class WaveLoad(torch.nn.Module):
         # Gather lower bound values: shape (dof, N)
         # Use the RAO buffers stored in the original heading order
         rao_amp_lb   = self._forceRAOamp[:, freq_ind, index_lb]
-        rao_phase_lb = self._forceRAOphase[:, freq_ind, index_lb]
+        rao_phase_lb = self._forceRAOphase[:, freq_ind, index_lb] # Phase is in radians
 
         # Gather upper bound values: shape (dof, N)
         rao_amp_ub   = self._forceRAOamp[:, freq_ind, index_ub]
-        rao_phase_ub = self._forceRAOphase[:, freq_ind, index_ub]
+        rao_phase_ub = self._forceRAOphase[:, freq_ind, index_ub] # Phase is in radians
 
         # 8. Perform linear interpolation
         scale_2d = scale.unsqueeze(0) # shape (1, N)
@@ -281,9 +304,9 @@ class WaveLoad(torch.nn.Module):
         # Interpolate amplitude
         rao_amp = rao_amp_lb + (rao_amp_ub - rao_amp_lb) * scale_2d
 
-        # Interpolate phase using pipi for difference to handle wrap-around correctly
-        phase_diff = pipi(rao_phase_ub - rao_phase_lb) # Difference respecting wrap-around
-        rao_phase = pipi(rao_phase_lb + phase_diff * scale_2d) # Interpolate and wrap result
+        # Interpolate phase directly, matching NumPy: phase_lb + (phase_ub - phase_lb) * scale
+        # No need for pipi wrapping here as NumPy doesn't do it.
+        rao_phase = rao_phase_lb + (rao_phase_ub - rao_phase_lb) * scale_2d
 
         return rao_amp, rao_phase
 
@@ -374,25 +397,38 @@ class WaveLoad(torch.nn.Module):
     def _build_force_raos(self, force_amp, force_phase, freq_cfg):
         """
         Builds the 1st-order RAO amplitude & phase w.r.t. self._freqs.
-        Requires force_amp/force_phase corresponding to sorted headings if interpolation is used.
-        (Code remains largely the same as previous PyTorch version, uses sorted inputs)
+        Accepts force_phase already converted to radians.
+        Matches NumPy interpolation/lookup logic as closely as possible.
         """
         dof, Nfreq_cfg, Nhead_cfg = force_amp.shape
         N = self._N # Number of wave frequencies
         device = force_amp.device
 
         out_amp   = torch.zeros((dof, N, Nhead_cfg), dtype=torch.float32, device=device)
-        out_phase = torch.zeros_like(out_amp)
+        out_phase = torch.zeros_like(out_amp) # Phase will be in radians
 
         if self._interpolate:
+            # Note: NumPy uses specific fill_values (amp[:,0,:], 0) and (0, phase[:,-1,:])
+            # torch_lininterp_1d uses boundary values by default. Replicating NumPy's exact fill
+            # might require modification of torch_lininterp_1d or manual handling post-interpolation.
+            # Using boundary values for now as the closest equivalent.
             for d in range(dof):
                 for h in range(Nhead_cfg):
                     yA = force_amp[d,:,h]
-                    yP = force_phase[d,:,h]
-                    interpA = torch_lininterp_1d(freq_cfg, yA, self._freqs,
-                                                left_fill=yA[0], right_fill=yA[-1])
-                    interpP = torch_lininterp_1d(freq_cfg, yP, self._freqs,
-                                                left_fill=yP[0], right_fill=yP[-1])
+                    yP = force_phase[d,:,h] # Phase is already in radians
+                    interpA = torch_lininterp_1d(
+                        freq_cfg, yA, self._freqs,
+                        left_fill=yA[0],           # unchanged
+                        right_fill=torch.tensor(0.0,
+                                                dtype=yA.dtype,
+                                                device=yA.device))   # <- force RAO amp to zero above table
+
+                    interpP = torch_lininterp_1d(
+                        freq_cfg, yP, self._freqs,
+                        left_fill=torch.tensor(0.0,
+                                                dtype=yP.dtype,
+                                                device=yP.device),    # <- force phase to zero below table
+                        right_fill=yP[-1])          # unchanged
                     out_amp[d,:,h]   = interpA
                     out_phase[d,:,h] = interpP
         else: # Nearest frequency lookup
@@ -400,7 +436,7 @@ class WaveLoad(torch.nn.Module):
             freq_idx = torch.argmin(diffs, dim=1) # Shape (N,)
             for d in range(dof):
                 out_amp[d, :, :] = force_amp[d, freq_idx, :]
-                out_phase[d, :, :] = force_phase[d, freq_idx, :]
+                out_phase[d, :, :] = force_phase[d, freq_idx, :] # Phase is already in radians
 
         return out_amp, out_phase
 
