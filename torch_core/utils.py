@@ -13,6 +13,18 @@ import torch
 import math
 import numpy as np
 
+def Smat_torch(v: torch.Tensor) -> torch.Tensor:
+    """3×3 skew-symmetric cross-product matrix (torch)."""
+    # v shape (3,) or (..., 3)
+    v1, v2, v3 = v[..., 0], v[..., 1], v[..., 2]
+    O = torch.zeros_like(v1)
+    return torch.stack([
+        torch.stack([O,  -v3,  v2], dim=-1),
+        torch.stack([v3,   O, -v1], dim=-1),
+        torch.stack([-v2, v1,   O], dim=-1)
+    ], dim=-2)                      # (..., 3, 3)
+
+
 def Rx_torch(phi):
     """3x3 rotation matrix about x-axis."""
     c = torch.cos(phi)
