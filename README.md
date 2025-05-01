@@ -1,7 +1,7 @@
 # McHorcrux
 **OBS OBS UNDER DEVELOPMENT**
 
-This repository contains **three distinct simulation and control frameworks** designed for simulating and controlling the **C/S Arctic Drillship** (and similar marine vessels) under wave disturbances. Developed for Kristian Magnus Roen's master's thesis in Marine Cybernetics (2025), the repository includes:
+This repository contains **three distinct simulation and control frameworks** designed for simulating and controlling the two 6 DOF models **C/S Arctic Drillship** and **R/V Gunnerus** under wave disturbances. Developed for Kristian Magnus Roen's master's thesis in Marine Cybernetics (2025), the repository includes:
 
 ### 1. `jax_core/`
 A high-performance, differentiable pipeline based on [JAX](https://github.com/jax-ml/jax) and adapted from the [mcsimpy](https://github.com/NTNU-MCS/mcsimpy) simulator. It provides **significantly enhanced computational speed** and memory efficiency, making it ideal for large-scale or repeated simulations and extensive machine learning applications. This core also features an adapted marine-focused version of the meta-trained adaptive controller from [Richards et al. (2021)](https://github.com/StanfordASL/Adaptive-Control-Oriented-Meta-Learning/tree/master).
