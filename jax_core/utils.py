@@ -3,6 +3,8 @@ utils.py
 
 Author: Kristian Magnus Roen, Spencer M. Richards
 Date:   2025-03-17
+
+NOTE: two smat and Smat functions are defined in this file. 
 """
 import jax
 import numpy as np
@@ -26,6 +28,12 @@ def pipi(angle):
     """
     return jnp.mod(angle + jnp.pi, 2*jnp.pi) - jnp.pi
 
+def Smat(v):
+    """Skew-symmetric cross-product matrix (JAX)."""
+    v = jnp.asarray(v)
+    return jnp.array([[    0.0,  -v[2],  v[1]],
+                      [  v[2],     0.0, -v[0]],
+                      [ -v[1],   v[0],   0.0]])
 
 def three2sixDOF(v):
     """
