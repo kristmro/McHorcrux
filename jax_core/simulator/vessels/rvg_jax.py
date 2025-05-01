@@ -9,7 +9,6 @@ Date:   2025-03-17
 """
 
 import json
-import jax
 import jax.numpy as jnp
 from jax_core.utils import Rz, J, Smat  # Ensure these are pure functions as well
 
