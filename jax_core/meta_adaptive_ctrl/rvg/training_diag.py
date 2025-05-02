@@ -373,9 +373,9 @@ if __name__ == "__main__":
         'b': [0.1*jax.random.normal(subkeys_b[i], (shapes[i][0],))
               for i in range(num_hlayers)],
         'gains': {
-            'Λ': jnp.log(1) + 0.5 * jax.random.normal(subkeys_gains[0], (num_dof,)),  # Set Λ to 5 for all DOFs
-            'K': jnp.log(10) + 0.5 * jax.random.normal(subkeys_gains[1], (num_dof,)),   # Set K to 100 for all DOFs
-            'P': jnp.log(10) + 0.5 * jax.random.normal(subkeys_gains[2], (num_dof,))   # Set P to 100 for all DOFs
+            'Λ': jnp.log(1) + 0.1 * jax.random.normal(subkeys_gains[0], (num_dof,)),  # Set Λ to 5 for all DOFs
+            'K': jnp.log(10) + 0.1 * jax.random.normal(subkeys_gains[1], (num_dof,)),   # Set K to 100 for all DOFs
+            'P': jnp.log(10) + 0.1 * jax.random.normal(subkeys_gains[2], (num_dof,))   # Set P to 100 for all DOFs
         }
     }
 

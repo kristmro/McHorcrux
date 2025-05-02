@@ -280,7 +280,7 @@ if __name__ == "__main__":
     # Choose wave parameters, fixed control gains, and simulation times
     num_dof = 3
     key = jax.random.PRNGKey(seed)
-    w = disturbance(jnp.array((10.0, 20.0, 0)), key)
+    w = disturbance(jnp.array((8.0, 17.0, 0)), key)
     λ, k, p = 5.0, 100.0, 100.0
     T, dt = T_sim, dt
     ts = jnp.arange(0, T + dt, dt)
