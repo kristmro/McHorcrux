@@ -1,4 +1,5 @@
 # McHorcrux
+
 **OBS OBS UNDER DEVELOPMENT**
 
 This repository contains **three distinct simulation and control frameworks** designed for simulating and controlling the two 6 DOF models, **C/S Arctic Drillship** and **R/V Gunnerus**, under wave disturbances. Developed for Kristian Magnus Roen's master's thesis in Marine Cybernetics (2025), the repository includes:
@@ -48,6 +49,9 @@ In this dynamic scenario (also using **numpy_core**), both the goal and obstacle
 
 ![Dynamical obstacles and goal McGym](figures/demo_gifs/dynamic_goal_obstical_mcgym.gif)
 
+#### The speed difference over different dt's and wave numbers [JAX vs NumPy]
+In this picture on can see that the JAX simulator is logarithmically faster than the NumPy version. The idea is that later it shall be run against Torch as well, but PyTorch looks like it's only marginally faster than NumPy.
+![image](https://github.com/user-attachments/assets/2fb79c67-6f05-4ddb-b572-ac5268a8c7d2)
 
 ## Installation & Requirements
 
