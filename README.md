@@ -53,6 +53,9 @@ In this dynamic scenario (also using **numpy_core**), both the goal and obstacle
 In this picture on can see that the JAX simulator is logarithmically faster than the NumPy version. The idea is that later it shall be run against Torch as well, but PyTorch looks like it's only marginally faster than NumPy.
 ![image](https://github.com/user-attachments/assets/2fb79c67-6f05-4ddb-b572-ac5268a8c7d2)
 
+#### The waves and response of R/V Gunnerus 
+![Wave realisation of rvg](figures/vessel_motion3d__rvg_waveangle_180.gif)
+
 ## Installation & Requirements
 
 You will need:
