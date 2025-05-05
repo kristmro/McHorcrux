@@ -70,7 +70,7 @@ hparams = {
         'batch_frac':     0.25,  # fraction of training data per batch
         'regularizer_l2': 1e-4,  # coefficient for L2-regularization
         'learning_rate':  1e-2,  # step size for gradient optimization
-        'num_epochs':     2000,  # number of epochs
+        'num_epochs':     4000,  # number of epochs
     },
     # For meta-training
     'meta': {
@@ -78,7 +78,7 @@ hparams = {
         'hdim':              32,         # number of hidden units per layer
         'train_frac':        0.75,       #
         'learning_rate':     1e-2,       # step size for gradient optimization
-        'num_steps':         1500,        # maximum number of gradient steps
+        'num_steps':         650,        # maximum number of gradient steps
         'regularizer_l2':    1e-4,       # coefficient for L2-regularization
         'regularizer_ctrl':  args.ctrl_pen,       #
         'regularizer_error': 0.,         #
@@ -100,7 +100,7 @@ if __name__ == "__main__":
     # DATA PROCESSING ########################################################
     # Load raw data and arrange in samples of the form
     # `(t, x, u, t_next, x_next)` for each trajectory, where `x := (q,dq)`
-    with open('data/training_data/rvg_training_data_wave_pm45_N15_hs7.pkl', 'rb') as file:
+    with open('data/training_data/rvg_training_data_wave_pm45_N15_hs5.pkl', 'rb') as file:
         raw = pickle.load(file)
     num_dof = raw['q'].shape[-1]       # number of degrees of freedom
     num_traj = raw['q'].shape[0]       # total number of raw trajectories

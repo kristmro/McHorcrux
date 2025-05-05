@@ -170,7 +170,7 @@ def ref(t):
 if __name__ == "__main__":
     print('Testing ... ', flush=True)
     start = time.time()
-    seed, M, ctrl_pen, act, test_act = 7, 20, 2, 'off', 'off'
+    seed, M, ctrl_pen, act, test_act = 6, 10, 2, 'off', 'off'
 
     # Sampled-time simulator
     @jax.tree_util.Partial(jax.jit, static_argnums=(3,))
@@ -294,7 +294,7 @@ if __name__ == "__main__":
 
     # Our method with meta-learned gains
     print('meta trained adaptive ctrl ...', flush=True)
-    filename = os.path.join('data', 'training_results','act_{}'.format(act), 'ctrl_pen_{}'.format(ctrl_pen),'seed={}_M={}.pkl'.format(seed, M))
+    filename = os.path.join('data', 'training_results','csad','act_{}'.format(act), 'ctrl_pen_{}'.format(ctrl_pen),'seed={}_M={}.pkl'.format(seed, M))
     with open(filename, 'rb') as file:
         train_results = pickle.load(file)
     
@@ -323,27 +323,31 @@ if __name__ == "__main__":
         't': ts, 'q': q, 'dq': dq, 'r': r, 'dr': dr,
         'u': u, 'τ': τ, 'e': e,
     }
-    # import matplotlib.pyplot as plt
-    # import numpy as np
-    # # ----------------------------------------------------------------------------
-    # # Plot the wave loads vs time for each degree of freedom (DOF)
-    # # ----------------------------------------------------------------------------
-    # # Note: wave_loads is an array with shape (n_steps, 6) if tau_wave is a 6-element vector.
-    # wave_loads_np = np.array(f_hat).T  # Transpose to shape (DOF, n_steps) to match t_array shape
-    # t_array = np.asarray(ts)  # Time array, shape: (n_steps,)
-    # fig, axes = plt.subplots(nrows=3, ncols=1, figsize=(10, 12), sharex=True)
-    # dof_labels = ['Surge', 'Sway', 'Yaw']
+    f_ext_hist = jax.vmap(lambda ti, qi: wave_load(ti, qi, w))(ts, q)   # (n_steps, 6)
+    f_ext_hist_np = np.asarray(f_ext_hist).T                            # (DOF, n_steps)
 
-    # for i in range(3):
-    #     axes[i].plot(t_array, wave_loads_np[i, :], label=f'{dof_labels[i]}')
-    #     axes[i].set_ylabel('Wave load')
-    #     axes[i].legend()
-    #     axes[i].grid()
+    import matplotlib.pyplot as plt
+    import numpy as np
+    # ----------------------------------------------------------------------------
+    # Plot the wave loads vs time for each degree of freedom (DOF)
+    # ----------------------------------------------------------------------------
+    # Note: wave_loads is an array with shape (n_steps, 6) if tau_wave is a 6-element vector.
+    wave_loads_np = np.array(f_hat).T  # Transpose to shape (DOF, n_steps) to match t_array shape
+    t_array = np.asarray(ts)  # Time array, shape: (n_steps,)
+    fig, axes = plt.subplots(nrows=3, ncols=1, figsize=(10, 12), sharex=True)
+    dof_labels = ['Surge', 'Sway', 'Yaw']
 
-    # axes[-1].set_xlabel('Time [s]')
-    # fig.suptitle('Wave Loads vs Time for Each DOF', y=0.95)  # Adjusted y position
-    # plt.tight_layout(rect=[0, 0, 1, 0.96])  # Leave space for the suptitle
-    # plt.show()
+    for i in range(3):
+        axes[i].plot(t_array, f_ext_hist_np[i], 'k--', label='f_ext (true)')
+        axes[i].plot(t_array, wave_loads_np[i],  'r',   label='f_hat')
+        axes[i].legend()
+        axes[i].grid()
+
+    axes[-1].set_xlabel('Time [s]')
+    fig.suptitle('Wave Loads vs Time for Each DOF', y=0.95)  # Adjusted y position
+    plt.tight_layout(rect=[0, 0, 1, 0.96])  # Leave space for the suptitle
+    plt.show()
+
 
     for method in ('pid', 'adaptive_ctrl'):
         if method == 'pid':
@@ -383,25 +387,26 @@ if __name__ == "__main__":
 
 
 
-    # # ----------------------------------------------------------------------------
-    # # Plot the wave loads vs time for each degree of freedom (DOF)
-    # # ----------------------------------------------------------------------------
-    # # Note: wave_loads is an array with shape (n_steps, 6) if tau_wave is a 6-element vector.
-    # wave_loads_np = np.array(f_hat).T  # Transpose to shape (DOF, n_steps) to match t_array shape
-    # t_array = np.asarray(ts)  # Time array, shape: (n_steps,)
-    # fig, axes = plt.subplots(nrows=3, ncols=1, figsize=(10, 12), sharex=True)
-    # dof_labels = ['Surge', 'Sway', 'Yaw']
+    # ----------------------------------------------------------------------------
+    # Plot the wave loads vs time for each degree of freedom (DOF)
+    # ----------------------------------------------------------------------------
+    # Note: wave_loads is an array with shape (n_steps, 6) if tau_wave is a 6-element vector.
+    wave_loads_np = np.array(f_hat).T  # Transpose to shape (DOF, n_steps) to match t_array shape
+    t_array = np.asarray(ts)  # Time array, shape: (n_steps,)
+    fig, axes = plt.subplots(nrows=3, ncols=1, figsize=(10, 12), sharex=True)
+    dof_labels = ['Surge', 'Sway', 'Yaw']
 
-    # for i in range(3):
-    #     axes[i].plot(t_array, wave_loads_np[i, :], label=f'{dof_labels[i]}')
-    #     axes[i].set_ylabel('Wave load')
-    #     axes[i].legend()
-    #     axes[i].grid()
+    for i in range(3):
+        axes[i].plot(t_array, f_ext_hist_np[i], 'k--', label='f_ext (true)')
+        axes[i].plot(t_array, wave_loads_np[i, :], label=f'{dof_labels[i]}')
+        axes[i].set_ylabel('Wave load')
+        axes[i].legend()
+        axes[i].grid()
 
-    # axes[-1].set_xlabel('Time [s]')
-    # fig.suptitle('Wave Loads vs Time for Each DOF', y=0.95)  # Adjusted y position
-    # plt.tight_layout(rect=[0, 0, 1, 0.96])  # Leave space for the suptitle
-    # plt.show()
+    axes[-1].set_xlabel('Time [s]')
+    fig.suptitle('Wave Loads vs Time for Each DOF', y=0.95)  # Adjusted y position
+    plt.tight_layout(rect=[0, 0, 1, 0.96])  # Leave space for the suptitle
+    plt.show()
     #--------------------------------------------------------------------
     # Plotting
     #--------------------------------------------------------------------
