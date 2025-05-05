@@ -50,7 +50,7 @@ In this dynamic scenario (also using **numpy_core**), both the goal and obstacle
 ![Dynamical obstacles and goal McGym](figures/demo_gifs/dynamic_goal_obstical_mcgym.gif)
 
 #### The speed difference over different dt's and wave numbers [JAX vs NumPy]
-In this picture on can see that the JAX simulator is logarithmically faster than the NumPy version. The idea is that later it shall be run against Torch as well, but PyTorch looks like it's only marginally faster than NumPy.
+This plot shows that the JAX simulator is logarithmically faster than the NumPy version. The idea is that later it shall be run against Torch as well, but PyTorch looks like it's only marginally faster than NumPy.
 ![image](https://github.com/user-attachments/assets/2fb79c67-6f05-4ddb-b572-ac5268a8c7d2)
 
 #### The waves and response of R/V Gunnerus 
