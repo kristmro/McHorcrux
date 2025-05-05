@@ -12,7 +12,7 @@ import json
 import jax.numpy as jnp
 from jax_core.utils import Rz, J, Smat  # Ensure these are pure functions as well
 
-def load_rvg_parameters(config_file="/home/kmroen/miniconda3/envs/tensor/lib/python3.9/site-packages/mclsimpy/vessel_data/gunnerus/vessel_2.json"):
+def load_rvg_parameters(config_file="data/vessel_data/rvg/rvg.json"):
     """
     Load the vessel parameters from a JSON file and construct the system matrices.
     
@@ -92,7 +92,7 @@ def rvg_x_dot(x, Uc, betac, tau, params):
     
     return jnp.concatenate([eta_dot, nu_dot])
 
-def set_hydrod_parameters(freq, params, config_file="/home/kmroen/miniconda3/envs/tensor/lib/python3.9/site-packages/mclsimpy/vessel_data/gunnerus/vessel_2.json"):
+def set_hydrod_parameters(freq, params, config_file="data/vessel_data/rvg/rvg.json"):
     """
     Update hydrodynamic parameters for a given frequency (or per-DOF frequencies).
     

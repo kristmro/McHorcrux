@@ -10,7 +10,7 @@ from jax_core.simulator.waves.wave_load_jax_jit import init_wave_load, WaveLoad,
 # --------------------------------------------------------------------------
 # Load vessel parameters and set up initial state (functional style)
 # --------------------------------------------------------------------------
-config_file = "/home/kmroen/miniconda3/envs/tensor/lib/python3.9/site-packages/mclsimpy/vessel_data/CSAD/vessel_json.json"
+config_file = "data/vessel_data/csad/csad.json"
 params_jit = load_csad_parameters(config_file)
 M = six2threeDOF(params_jit["M"])
 D = six2threeDOF(params_jit["D"])
@@ -20,7 +20,7 @@ def prior_3dof(q, dq, M=M, D=D, G=G):
     return M, D, G, Rz(q[-1])
 
 def prior_6dof(q, dq):
-    config_file = "/home/kmroen/miniconda3/envs/tensor/lib/python3.9/site-packages/mclsimpy/vessel_data/CSAD/vessel_json.json"
+    config_file = "data/vessel_data/csad/csad.json"
     params_jit = load_csad_parameters(config_file)
     M = params_jit["M"]
     D = params_jit["D"]
@@ -39,7 +39,7 @@ def plant(q, dq, u, f_ext, prior=prior_3dof):
 #     return ddq
 
 def disturbance(wave_parm, key, N=15,
-                config_file="/home/kmroen/miniconda3/envs/tensor/lib/python3.9/site-packages/mclsimpy/vessel_data/CSAD/vessel_json.json"):
+                config_file="data/vessel_data/csad/csad.json"):
     hs, tp, wave_dir = wave_parm
     print(hs, tp, wave_dir)
     wp = 2 * jnp.pi / tp       # Peak frequency

@@ -13,7 +13,7 @@ import jax
 import jax.numpy as jnp
 from jax_core.utils import Rz, J  # Ensure these are pure functions as well
 
-def load_csad_parameters(config_file="/home/kmroen/miniconda3/envs/tensor/lib/python3.9/site-packages/mclsimpy/vessel_data/CSAD/vessel_json.json"):
+def load_csad_parameters(config_file="data/vessel_data/csad/csad.json"):
     """
     Load the vessel parameters from a JSON file and construct the system matrices.
     
@@ -91,7 +91,7 @@ def csad_x_dot(x, Uc, betac, tau, params):
     
     return jnp.concatenate([eta_dot, nu_dot])
 
-def set_hydrod_parameters(freq, params, config_file="/home/kmroen/miniconda3/envs/tensor/lib/python3.9/site-packages/mclsimpy/vessel_data/CSAD/vessel_json.json"):
+def set_hydrod_parameters(freq, params, config_file="data/vessel_data/csad/csad.json"):
     """
     Update hydrodynamic parameters for a given frequency (or per-DOF frequencies).
     

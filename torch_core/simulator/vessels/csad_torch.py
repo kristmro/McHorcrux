@@ -13,6 +13,7 @@ Date:   2025-02-17
 import torch
 import os
 import json
+from typing import Union
 from  torch_core.simulator.vessels.vessel_torch import Vessel
 from torch_core.utils import Rz_torch, J_torch
 
@@ -40,9 +41,7 @@ class CSAD_6DOF(Vessel):
     def __init__(self,
                  dt: float,
                  method: str = "RK4",
-                 config_file: str =
-                   "/home/kmroen/miniconda3/envs/tensor/lib/python3.9/site-packages/"
-                   "mclsimpy/vessel_data/CSAD/vessel_json.json",
+                 config_file: str ="data/vessel_data/csad/csad.json",
                  dof: int = 6):
         """
         Parameters
@@ -55,9 +54,7 @@ class CSAD_6DOF(Vessel):
 
         # 1) Resolve the JSON file path exactly the same way as the original
         # ------------------------------------------------------------------
-        DATA_DIR = "/home/kristmro/workspace/CSAD/venv/lib/python3.8/site-packages/" \
-                   "MCSimPython/vessel_data/CSAD/"
-        cfg_path = os.path.join(DATA_DIR, config_file)   # keep identical path logic
+        cfg_path = config_file # Use the provided config_file path directly
 
         # 2) Call the generic differentiable-vessel constructor (handles the
         #    integration loop, buffers, etc.)
@@ -96,8 +93,8 @@ class CSAD_6DOF(Vessel):
     # ─────────────────────────────────────────────────────────────────
     def x_dot(self,
               x:    torch.Tensor,
-              Uc:   float | torch.Tensor,
-              betac:float | torch.Tensor,
+              Uc:   Union[float, torch.Tensor],
+              betac:Union[float, torch.Tensor],
               tau:  torch.Tensor) -> torch.Tensor:
         """
         Compute **ẋ = f(x, τ)** for the CSAD 6-DOF vessel.

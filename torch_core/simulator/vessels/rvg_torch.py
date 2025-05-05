@@ -15,9 +15,7 @@ class RVG_6DOF(Vessel):
     def __init__(self,
                  dt: float,
                  method: str = "RK4",
-                 config_file: str =
-                   "/home/kmroen/miniconda3/envs/tensor/lib/python3.9/site-packages/"
-                   "mclsimpy/vessel_data/gunnerus/vessel_2.json",
+                 config_file: str ="data/vessel_data/rvg/rvg.json",
                  dof: int = 6):
 
         cfg_path = os.path.expanduser(config_file)

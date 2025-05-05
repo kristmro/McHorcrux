@@ -10,7 +10,7 @@ from jax_core.simulator.waves.wave_load_jax_jit import init_wave_load, WaveLoad,
 # --------------------------------------------------------------------------
 # Load vessel parameters and set up initial state (functional style)
 # --------------------------------------------------------------------------
-config_file = "/home/kmroen/miniconda3/envs/tensor/lib/python3.9/site-packages/mclsimpy/vessel_data/gunnerus/vessel_2.json"
+config_file = "data/vessel_data/rvg/rvg.json"
 params_jit = load_rvg_parameters(config_file)
 M = six2threeDOF(params_jit["M"])
 D = six2threeDOF(params_jit["D"])
@@ -32,7 +32,7 @@ def plant(q, dq, u, f_ext, prior=prior_3dof):
 #     return ddq
 
 def disturbance(wave_parm, key, N=15,
-                config_file="/home/kmroen/miniconda3/envs/tensor/lib/python3.9/site-packages/mclsimpy/vessel_data/gunnerus/vessel_2.json"):
+                config_file="data/vessel_data/rvg/rvg.json"):
     hs, tp, wave_dir = wave_parm
     print(hs, tp, wave_dir)
     wp = 2 * jnp.pi / tp       # Peak frequency
