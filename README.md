@@ -5,7 +5,7 @@
 This repository contains **three distinct simulation and control frameworks** designed for simulating and controlling the three 6 DOF models, **C/S Arctic Drillship**, **R/V Gunnerus** and **C/S Voyager**, under wave disturbances. Developed for Kristian Magnus Roen's master's thesis in Marine Cybernetics (2025), the repository includes:
 
 ### 1. `jax_core/`
-A high-performance, differentiable pipeline based on [JAX](https://github.com/jax-ml/jax) and adapted from the [mcsimpy](https://github.com/NTNU-MCS/mcsimpy) simulator. It provides **significantly enhanced computational speed** and memory efficiency, making it ideal for large-scale or repeated simulations and extensive machine learning applications. This core also features an adapted marine-focused version of the meta-trained adaptive controller from [Richards et al. (2021)](https://github.com/StanfordASL/Adaptive-Control-Oriented-Meta-Learning/tree/master).
+A high-performance, differentiable pipeline based on [JAX](https://github.com/jax-ml/jax) and adapted from the [mcsimpy](https://github.com/NTNU-MCS/mcsimpy) simulator. It provides **significantly enhanced computational speed** and memory efficiency, making it ideal for large-scale or repeated simulations and extensive machine learning applications. This core also features an adapted marine-focused version of the meta-trained adaptive controller from [Richards et al. (2021)](https://github.com/StanfordASL/Adaptive-Control-Oriented-Meta-Learning/tree/master) and adding model-uncertainty and training only the diagonal gains.
 
         TODO:
         - make a demo for how to use the controller
@@ -49,13 +49,25 @@ In this dynamic scenario (also using **numpy_core**), both the goal and obstacle
 
 ![Dynamical obstacles and goal McGym](figures/demo_gifs/dynamic_goal_obstical_mcgym.gif)
 
-#### The speed difference over different dt's and wave numbers [JAX vs NumPy]
-This plot shows that the JAX simulator is logarithmically faster than the NumPy version. The idea is that later it shall be run against Torch as well, but PyTorch looks like it's only marginally faster than NumPy.
-![image](https://github.com/user-attachments/assets/2fb79c67-6f05-4ddb-b572-ac5268a8c7d2)
+---
 
-#### The waves and response of R/V Gunnerus 
+##### The mean speed ratio over wave numbers [JAX and PyTorch vs NumPy]
+- **JAX is consistently fastest** Across every resolution N and every integration-step count, the JAX curve sits at least an order of magnitude lower than NumPy and well below PyTorch.
+- **PyTorch overtakes NumPy for larger grids** The speed-up bars show Torch / NumPy < 1 once N ≥ 80, dropping to roughly 0.5× NumPy at N = 320.
+- **Memory, not runtime, becomes the limit at large N** The QTF tensor size grows as O(N²); doubling N quadruples required RAM/VRAM.
+![image](https://github.com/user-attachments/assets/fb901693-4c32-472d-8ed1-36330e501733)
+
+#### Wall-clock runtime vs physical simulation time
+- **NumPy’s cost explodes with N** Mean runtime rises ≈ 14 × from N = 40 to 320, while JAX rises only ≈ 3 ×.
+- **Runtime scales linearly with the number of integration steps** Log-log “runtime vs steps” lines have slope ≈ 1 for all backends, meaning doubling the simulated time (or halving Δt) doubles wall-time.
+![image](https://github.com/user-attachments/assets/f17a81cb-03ce-42a6-b6fc-42104676b7ce)
+
+---
+
+### The waves and response of R/V Gunnerus 
 ![Wave realisation of rvg](figures/vessel_motion3d__rvg_waveangle_180.gif)
 
+---
 ## Installation & Requirements
 
 You will need:
