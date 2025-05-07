@@ -95,7 +95,6 @@ You will need:
     - **JAX Core**:
         
         ```bash
-        # CPU-only JAX
         pip install -U "jax[cuda12]"
   
         ```
