@@ -16,13 +16,13 @@ A high-performance, differentiable pipeline based on [JAX](https://github.com/ja
         
 
 ### 2. `numpy_core/`
-Features a highly modular Gym environment called **McGym**, complete with live visualization capabilities with [pygame](https://github.com/pygame/), built around the standard [mcsimpy](https://github.com/NTNU-MCS/mcsimpy) simulator. McGym follows an API structure similar to [OpenAI's Gym](https://github.com/openai/gym), offering standardized tasks and the flexibility to define custom scenarios, including dynamic or static obstacles influenced by wave motions. Ideal for **Monte Carlo simulations** or for real-time testing of custom controllers.
+Features a highly modular Gym environment called **mcGym**, complete with live visualization capabilities with [pygame](https://github.com/pygame/), built around the standard [mcsimpy](https://github.com/NTNU-MCS/mcsimpy) simulator. mcGym follows an API structure similar to [OpenAI's Gym](https://github.com/openai/gym), offering standardized tasks and the flexibility to define custom scenarios, including dynamic or static obstacles influenced by wave motions. Ideal for **Monte Carlo simulations** or for real-time testing of custom controllers.
 
         TODO: 
         - Correct the readme file
 
 ### 3. `torch_core/`
-A [PyTorch](https://github.com/pytorch/pytorch)-powered variant of the [mcsimpy](https://github.com/NTNU-MCS/mcsimpy) simulator designed explicitly for machine learning integration. Leveraging PyTorch’s extensive ML modules, this core excels in **reinforcement learning (RL)** and sophisticated ML-driven controller implementations, fully harnessing McGym's capabilities.
+A [PyTorch](https://github.com/pytorch/pytorch)-powered variant of the [mcsimpy](https://github.com/NTNU-MCS/mcsimpy) simulator designed explicitly for machine learning integration. Leveraging PyTorch’s extensive ML modules, this core excels in **reinforcement learning (RL)** and sophisticated ML-driven controller implementations, fully harnessing mcGym's capabilities.
 
         TODO: 
         - Correct the readme file
@@ -30,26 +30,26 @@ A [PyTorch](https://github.com/pytorch/pytorch)-powered variant of the [mcsimpy]
 ---
 ## Demonstrations
 
-Below are example runs showcasing the capabilities of our different McGym cores:
+Below are example runs showcasing the capabilities of our different mcGym cores:
 
-#### Four-corner DP in Torch McGym  
-This GIF uses the **torch_core** version of McGym together with a custom `ModelController(nn.Module)`—a pure PyTorch controller that implements a PD law augmented by full model compensation. Because it’s built on `torch.nn`, you can seamlessly swap in learned networks, fine-tune gains via backpropagation, or integrate any other PyTorch module.
+#### Four-corner DP in Torch mcGym  
+This GIF uses the **torch_core** version of mcGym together with a custom `ModelController(nn.Module)`—a pure PyTorch controller that implements a PD law augmented by full model compensation. Because it’s built on `torch.nn`, you can seamlessly swap in learned networks, fine-tune gains via backpropagation, or integrate any other PyTorch module.
 
-![Four-corner DP in Torch McGym](figures/demo_gifs/4corner_dp_torch.gif)
-
----
-
-#### Static Obstacle and Goal in NumPy McGym  
-Here the **numpy_core** McGym runs a static scenario: the vessel must navigate from its start point to a fixed goal while avoiding a stationary circular obstacle. The controller plans a path around the obstacle and holds final heading within the specified tolerance.  
-
-![Static obstacle and goal McGym](figures/demo_gifs/static_goal_obstical_mcgym.gif)
+![Four-corner DP in Torch mcGym](figures/demo_gifs/4corner_dp_torch.gif)
 
 ---
 
-#### Dynamic Obstacles and Moving Goal in NumPy McGym  
+#### Static Obstacle and Goal in NumPy mcGym  
+Here the **numpy_core** mcGym runs a static scenario: the vessel must navigate from its start point to a fixed goal while avoiding a stationary circular obstacle. The controller plans a path around the obstacle and holds final heading within the specified tolerance.  
+
+![Static obstacle and goal mcGym](figures/demo_gifs/static_goal_obstical_mcGym.gif)
+
+---
+
+#### Dynamic Obstacles and Moving Goal in NumPy mcGym  
 In this dynamic scenario (also using **numpy_core**), both the goal and obstacles move over time: the goal “wiggles” sinusoidally, and two circular obstacles follow independent trajectories. The controller continuously replans to track the moving goal however, it hits one of the obstacles, and the loop is then terminated.  
 
-![Dynamical obstacles and goal McGym](figures/demo_gifs/dynamic_goal_obstical_mcgym.gif)
+![Dynamical obstacles and goal mcGym](figures/demo_gifs/dynamic_goal_obstical_mcGym.gif)
 
 ---
 
