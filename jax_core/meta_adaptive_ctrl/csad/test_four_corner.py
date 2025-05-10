@@ -1,9 +1,7 @@
 """
 TODO description.
 
-Author: Spencer M. Richards
-        Autonomous Systems Lab (ASL), Stanford
-        (GitHub: spenrich)
+Author: Kristian Magnus Roen adapted from Spencer
 """
 
 import pickle

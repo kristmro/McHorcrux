@@ -143,3 +143,40 @@ def set_hydrod_parameters(freq, params, config_file="data/vessel_data/csad/csad.
         "D": D,
     })
     return new_params
+
+
+
+# # Example of how to make this
+# """6-DOF vessel dynamics exported as JAX callables (f, B)."""
+
+# import casadi as cs
+# import jax.numpy as jnp
+# from jaxadi import convert
+
+# _p = load_csad_parameters()
+# _M  = jnp.array(_p["M_rb"]) + jnp.array(_p["M_a"])
+# _Mi = jnp.linalg.inv(_M)
+# _D  = jnp.array(_p["D_lin"])
+# _g  = jnp.array(_p["g_eta"])
+
+# _eta = cs.SX.sym("eta", 6)          # pos/att
+# _nu  = cs.SX.sym("nu",  6)          # vel
+# _tau = cs.SX.sym("tau", 6)
+# _x   = cs.vertcat(_eta, _nu)
+
+# phi, _, psi = _eta[3], _eta[4], _eta[5]
+# c, s = cs.cos(psi), cs.sin(psi)
+# J = cs.vertcat(cs.horzcat(c, -s, 0),
+#                cs.horzcat(s,  c, 0),
+#                cs.horzcat(0,  0, 1))
+# Jb = cs.blockcat([[J, cs.SX.zeros(3,3)],
+#                   [cs.SX.zeros(3,3), cs.SX.eye(3)]])
+
+# x_dot = cs.vertcat(Jb @ _nu,
+#                    cs.mtimes(cs.SX(_Mi), (_tau - cs.mtimes(_D, _nu) - _g)))
+
+# _f = cs.Function("f", [_x, _tau], [x_dot])
+# _B = cs.Function("B", [_x], [cs.jacobian(x_dot, _tau)])
+
+# f = convert(_f, compile=True)   # (x, tau) → ẋ
+# B = convert(_B, compile=True)   # (x) → 6×6

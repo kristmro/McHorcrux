@@ -1,0 +1,10 @@
+interpax==0.3.6
+jax==0.4.30
+matplotlib==3.10.1
+mclsimpy==0.0.post21+g2362903
+numpy==2.2.5
+pandas==2.2.3
+pygame==2.6.1
+scipy==1.15.3
+torch==2.7.0.dev20250312+cu126
+tqdm==4.67.1

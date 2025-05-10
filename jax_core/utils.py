@@ -152,7 +152,7 @@ def Rzyx(eta):
 
 
 def Tzyx(eta):
-    phi, theta, psi = eta[3], eta[4], eta[5]
+    phi, theta = eta[3], eta[4]
     return jnp.array([
         [1, jnp.sin(phi)*jnp.tan(theta), jnp.cos(phi)*jnp.tan(theta)],
         [0, jnp.cos(phi), -jnp.sin(phi)],
@@ -162,8 +162,6 @@ def Tzyx(eta):
 
 def J(eta):
     """6 DOF rotation matrix."""
-
-    roll, pitch, yaw = eta[3], eta[4], eta[5]
     return jnp.block([
         [Rzyx(eta), jnp.zeros((3, 3))],
         [jnp.zeros((3, 3)), Tzyx(eta)]

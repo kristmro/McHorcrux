@@ -1,7 +1,7 @@
 
 import jax
 import jax.numpy as jnp
-from jax_core.utils import six2threeDOF, Rz
+from jax_core.utils import six2threeDOF, Rz, three2sixDOF, J
 from jax_core.simulator.vessels.rvg_jax import load_rvg_parameters
 from jax_core.simulator.waves.wave_spectra_jax import jonswap_spectrum
 # Updated import: now use the new jit-compatible module
@@ -12,19 +12,50 @@ from jax_core.simulator.waves.wave_load_jax_jit import init_wave_load, WaveLoad,
 # --------------------------------------------------------------------------
 config_file = "data/vessel_data/rvg/rvg.json"
 params_jit = load_rvg_parameters(config_file)
-M = six2threeDOF(params_jit["M"])
-D = six2threeDOF(params_jit["D"])
-G = six2threeDOF(params_jit["G"])
+M = params_jit["M"]
+D = params_jit["D"]
+G = params_jit["G"]
+M_3 = six2threeDOF(params_jit["M"])
+D_3 = six2threeDOF(params_jit["D"])
+G_3 = six2threeDOF(params_jit["G"])
 
-def prior_3dof(q, dq, M=M, D=D, G=G):
+
+def prior_3dof_nom(q, dq, M=M_3*0.95, D=D_3*0.85, G=G_3*0.9):
     return M, D, G, Rz(q[-1])
+
+def prior_3dof(q, dq, M=M_3, D=D_3, G=G_3):
+    return M, D, G, Rz(q[-1])
+
+
+
+
+
+def prior_6dof(q, dq, M=M, D=D, G=G):
+    return M, D, G, Rz(q[-1]), J(three2sixDOF(q))
+
+
+
 
 
 def plant(q, dq, u, f_ext, prior=prior_3dof):
     M, D, G, R = prior(q, dq)
-    ddq = jax.scipy.linalg.solve(M, six2threeDOF(f_ext) + R @ u - D @ dq - G @ q, assume_a='pos')
+    ddq = jax.scipy.linalg.solve(M, f_ext + R @ u - D @ dq - G @ q, assume_a='pos')
     dq = R @ dq
     return dq, ddq
+
+def plant_6(q, dq, u, f_ext, prior=prior_6dof):
+    M, D, G, R, J = prior(q, dq)
+
+    ddq = jax.scipy.linalg.solve(M, f_ext + J @ three2sixDOF(u) - D @ three2sixDOF(dq) - G @ three2sixDOF(q), assume_a='pos')
+    dq = R @ dq
+    return dq, six2threeDOF(ddq)
+
+def zero_prior(q, dq):
+    """Return zero dynamics so the controller has no model feed-forward."""
+    n = q.size
+    Z = jnp.zeros((n, n))
+    return Z, Z, jnp.zeros((n,)), jnp.eye(n)   # M, D, G, R
+
 
 # def plant_6dof(q, dq, u, f_ext, prior=prior_6dof):
 #     M, D, G, R, J = prior(q, dq)

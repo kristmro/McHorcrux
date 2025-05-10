@@ -40,7 +40,7 @@ if args.use_x64:
 #     get_default_config, DEFAULT_THRUST_MAX, DEFAULT_THRUST_MIN, DEFAULT_DT,
 #     DEFAULT_N_DOT_MAX, DEFAULT_ALPHA_DOT_MAX
 # )
-from jax_core.meta_adaptive_ctrl.rvg.dynamics import prior_3dof as prior                        
+from jax_core.meta_adaptive_ctrl.rvg.dynamics import prior_3dof_nom as prior                        
 from jax_core.utils import (odeint_fixed_step, rk38_step, epoch, tree_normsq,random_ragged_spline, spline, vec_to_posdef_diag_cholesky)
 
 
@@ -591,7 +591,7 @@ if __name__ == "__main__":
         },
         'controller': best_meta_params['gains'],
     }
-    output_path = os.path.join('data', 'training_results','rvg','act_{}'.format(act),'ctrl_pen_{}'.format(ctrl_pen), output_name + '.pkl')
+    output_path = os.path.join('data', 'training_results','rvg','model_uncertainty','act_{}'.format(act),'ctrl_pen_{}'.format(ctrl_pen), output_name + '.pkl')
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, 'wb') as file:
         pickle.dump(results, file)
