@@ -32,24 +32,24 @@ A [PyTorch](https://github.com/pytorch/pytorch)-powered variant of the [mcsimpy]
 
 Below are example runs showcasing the capabilities of our different mcGym cores:
 
-#### Four-corner DP in Torch mcGym  
-This GIF uses the **torch_core** version of mcGym together with a custom `ModelController(nn.Module)`—a pure PyTorch controller that implements a PD law augmented by full model compensation. Because it’s built on `torch.nn`, you can seamlessly swap in learned networks, fine-tune gains via backpropagation, or integrate any other PyTorch module.
-
-![Four-corner DP in Torch mcGym](figures/demo_gifs/4corner_dp_torch.gif)
-
----
-
 #### Static Obstacle and Goal in NumPy mcGym  
 Here the **numpy_core** mcGym runs a static scenario: the vessel must navigate from its start point to a fixed goal while avoiding a stationary circular obstacle. The controller plans a path around the obstacle and holds final heading within the specified tolerance.  
 
-![Static obstacle and goal mcGym](figures/demo_gifs/static_goal_obstical_mcGym.gif)
+![Static obstacle and goal mcGym](figures/demo_gifs/static_goal_obstical_mcgym.gif)
 
 ---
 
 #### Dynamic Obstacles and Moving Goal in NumPy mcGym  
 In this dynamic scenario (also using **numpy_core**), both the goal and obstacles move over time: the goal “wiggles” sinusoidally, and two circular obstacles follow independent trajectories. The controller continuously replans to track the moving goal however, it hits one of the obstacles, and the loop is then terminated.  
 
-![Dynamical obstacles and goal mcGym](figures/demo_gifs/dynamic_goal_obstical_mcGym.gif)
+![Dynamical obstacles and goal mcGym](figures/demo_gifs/dynamic_goal_obstical_mcgym.gif)
+
+---
+
+#### Four-corner DP in Torch mcGym  
+This GIF uses the **torch_core** version of mcGym together with a custom `ModelController(nn.Module)`—a pure PyTorch controller that implements a PD law augmented by full model compensation. Because it’s built on `torch.nn`, you can seamlessly swap in learned networks, fine-tune gains via backpropagation, or integrate any other PyTorch module.
+
+![Four-corner DP in Torch mcGym](figures/demo_gifs/4corner_dp_torch.gif)
 
 ---
 
