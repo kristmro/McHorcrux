@@ -27,7 +27,7 @@ parser.add_argument('M', help='number of trajectories to sub-sample',
 parser.add_argument('--use_x64', help='use 64-bit precision',
                     action='store_true')
 parser.add_argument('--ctrl_pen', help='control penalty',
-                    type=float, default=1e-2)
+                    type=float, default=2e-7)
 
 args = parser.parse_args()
 
@@ -89,8 +89,8 @@ hparams = {
         'num_knots':         6,          # knot points per reference spline
         'poly_orders':       (9, 9, 6),  # spline orders for each DOF
         'deriv_orders':      (4, 4, 2),  # smoothness objective for each DOF
-        'min_step':          (-0.4, -0.4, -pi/8),    #
-        'max_step':          (0.4, 0.4, pi/8),       #
+        'min_step':          (-0.6, -0.6, -pi/5),    #
+        'max_step':          (0.6, 0.6, pi/5),       #
         'min_ref':           (-inf, -inf, -pi/3),  #
         'max_ref':           (inf, inf, pi/3),     #
     },
@@ -304,10 +304,14 @@ if __name__ == "__main__":
         v, dv = dr - Λ@e, ddr - Λ@de
         s = de + Λ@e
 
+        def sat(s):
+            """Saturation function."""
+            phi = 7
+            return jnp.where(jnp.abs(s/phi) > 1, jnp.sign(s), s/phi)
         # Controller and adaptation law
         M, D, G, R = prior(q, dq)
         f_hat = A@y
-        τ = M@dv + D@v + G@e - f_hat - K@s
+        τ = M@dv + D@v + G@e - f_hat - K @ sat(s)
         u = jnp.linalg.solve(R, τ)
         dA = P @ jnp.outer(s, y)
         # Apply control to "true" dynamics
@@ -591,7 +595,7 @@ if __name__ == "__main__":
         },
         'controller': best_meta_params['gains'],
     }
-    output_path = os.path.join('data', 'training_results','rvg','model_uncertainty','act_{}'.format(act),'ctrl_pen_{}'.format(ctrl_pen), output_name + '.pkl')
+    output_path = os.path.join('data', 'training_results','rvg','model_uncertainty','sat','act_{}'.format(act),'ctrl_pen_{}'.format(ctrl_pen), output_name + '.pkl')
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, 'wb') as file:
         pickle.dump(results, file)

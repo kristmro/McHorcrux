@@ -245,6 +245,7 @@ def simulate_pid(ts, wl, t_knots, coefs, params,
     # ---- reference spline ----------------------------------------------
     def reference(t):
         r = jnp.array([spline(t, t_knots, c) for c in coefs])
+        r = r.at[2].set(jnp.mod(r[2] + jnp.pi, 2 * jnp.pi) - jnp.pi)
         return jnp.clip(r, min_ref, max_ref)
 
     def ref_derivatives(t):

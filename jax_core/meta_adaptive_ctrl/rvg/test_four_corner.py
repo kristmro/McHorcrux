@@ -1,9 +1,8 @@
 """
-TODO description.
+This script simulates the four-corner test for a 6-DOF system using JAX.
 
-Author: Spencer M. Richards
-        Autonomous Systems Lab (ASL), Stanford
-        (GitHub: spenrich)
+author: Kristian Magnus Roen
+
 """
 
 import pickle
@@ -11,7 +10,7 @@ import os
 import argparse
 import time
 import numpy as np
-
+from functools import partial
 # Parse command line arguments
 parser = argparse.ArgumentParser()
 parser.add_argument('--use_x64', help='use 64-bit precision',
@@ -26,7 +25,7 @@ import jax                                      # noqa: E402
 import jax.numpy as jnp                         # noqa: E402
 from jax.experimental.ode import odeint         # noqa: E402
 from jax_core.utils import params_to_posdef      # noqa: E402
-from jax_core.meta_adaptive_ctrl.rvg.dynamics import prior_3dof, plant, disturbance  # noqa: E402
+from jax_core.meta_adaptive_ctrl.rvg.dynamics import prior_3dof_nom as prior_3dof, plant_6 as plant, disturbance  # noqa: E402
 from jax_core.simulator.waves.wave_load_jax_jit import wave_load  # noqa: E402
 from jax_core.thruster_allocation.psudo import (
     create_thruster_config, allocate_with_config, saturate_rate, map_to_3dof,
@@ -74,8 +73,6 @@ def vec_to_posdef_diag_cholesky(v):
 # Import the reference filter functions.
 from jax_core.ref_gen.reference_filter import build_filter_matrices, simulate_filter_rk4
 
-# Uncomment this line to force using the CPU
-jax.config.update('jax_platform_name', 'cpu')  # TODO: keep or remove?
 
 #-----------------------------------------------------------------
 # Updated reference trajectory: Four-Corner Test (MC-GYM style)
@@ -170,10 +167,11 @@ def ref(t):
 if __name__ == "__main__":
     print('Testing ... ', flush=True)
     start = time.time()
-    seed, M, ctrl_pen, act, test_act = 2, 5, 6, 'off', 'off'
+    seed, M, ctrl_pen, act, test_act = 0, 2, 6, 'off', 'off'
+    integral_abs_limit_val = 1e+4  # Configurable integral clamp limit
 
     # Sampled-time simulator
-    @jax.tree_util.Partial(jax.jit, static_argnums=(3,))
+    @partial(jax.jit, static_argnums=(3,))
     def simulate(ts, w, params, ref=ref,
                  plant=plant, prior=prior_3dof, disturbance=wave_load):
         """TODO: docstring."""
@@ -203,8 +201,12 @@ if __name__ == "__main__":
             v, dv = dr - Λ @ e, ddr - Λ @ de
 
             # Control input and adaptation law
+            def sat(s):
+                """Saturation function."""
+                phi = 20
+                return jnp.where(jnp.abs(s/phi) > 1, jnp.sign(s), s/phi)
             M_mat, D, G, R = prior(q, dq)
-            τ = M_mat @ dv + D @ v + G @ q - f_hat - K @ s
+            τ = M_mat @ dv + D @ v + G @ e - f_hat - K @ sat(s)
             u = jnp.linalg.solve(R, τ)
             return u, τ
 
@@ -276,12 +278,75 @@ if __name__ == "__main__":
         f_hat = jnp.vstack((f0, f_hat))
 
         return q, dq, u, τ, r, dr, f_hat
+    
+    # ---------------------------------------------------------------------#
+    #  Pure PID simulator                                                  #
+    # ---------------------------------------------------------------------#
+    @partial(jax.jit, static_argnums=(3, 4, 5)) # num_dof_param (idx 3), current_integral_abs_limit (idx 4), ref_fn (idx 5)
+    def simulate_pid(ts, w, params, num_dof_param, current_integral_abs_limit, ref_fn=ref,
+                     plant_fn=plant, disturbance_fn=wave_load, prior_fn=prior_3dof):
+        """Simulate closed-loop system with a vector PID controller."""
+
+        Kp_mat = jnp.diag(params['Kp'])
+        Ki_mat = jnp.diag(params['Ki'])
+        Kd_mat = jnp.diag(params['Kd'])
+
+        # Define limits for the integral term I (for anti-windup via clamping)
+        I_min_limits = jnp.full((num_dof_param,), -current_integral_abs_limit)
+        I_max_limits = jnp.full((num_dof_param,), current_integral_abs_limit)
+
+        # ---- plant ODE w/ ZOH ----------------------------------------------
+        def ode(state, t, u):
+            q, dq = state
+            f_ext = disturbance_fn(t, q, w)
+            dq, ddq = plant_fn(q, dq, u, f_ext)
+            return (dq, ddq)
+
+        # ---- scan step ------------------------------------------------------
+        def step(carry, t):
+            t_prev, q_prev, dq_prev, u_prev, I_prev = carry
+            qs, dqs = odeint(ode, (q_prev, dq_prev), jnp.array([t_prev, t]), u_prev)
+            q, dq = qs[-1], dqs[-1]
+
+            r, dr, _ = ref_fn(t)
+            e, de = q - r, dq - dr
+            dt = t - t_prev
+            # Using the trapezoidal rule
+            I = I_prev + 0.5 * (e + (q_prev - r)) * dt
+            I = jnp.clip(I, I_min_limits, I_max_limits)
+
+            M_mat, D, G, R = prior_fn(q, dq)
+            
+            τ = -(Kp_mat @ e + Ki_mat @ I + Kd_mat @ de)
+            u = jnp.linalg.solve(R, τ)  
+
+            new_carry = (t, q, dq, u, I)
+            out_slice = (q, dq, u, τ, r, dr)
+            return new_carry, out_slice
+
+        # ---- initial conditions --------------------------------------------
+        t0 = ts[0]
+        r0, dr0, _ = ref_fn(t0)
+        q0, dq0 = r0, dr0
+        I0 = jnp.zeros_like(q0)
+        u0 = jnp.zeros_like(q0)
+
+        carry, outputs = jax.lax.scan(step, (t0, q0, dq0, u0, I0), ts[1:])
+        q, dq, u, τ, r, dr = outputs
+
+        q  = jnp.vstack((q0, q))
+        dq = jnp.vstack((dq0, dq))
+        u  = jnp.vstack((u0, u))
+        τ  = jnp.vstack((u0, τ))   # τ==u at t0
+        r  = jnp.vstack((r0, r))
+        dr = jnp.vstack((dr0, dr))
+        return q, dq, u, τ, r, dr
 
     # Choose wave parameters, fixed control gains, and simulation times
     num_dof = 3
     key = jax.random.PRNGKey(seed)
-    w = disturbance(jnp.array((6.0, 15.0, 0)), key)
-    λ, k, p = 5.0, 100.0, 100.0
+    w = disturbance(jnp.array((3.0, 15.0, 0)), key)
+    λ, k, p = 10.0, 50.0, 50.0
     T, dt = T_sim, dt
     ts = jnp.arange(0, T + dt, dt)
 
@@ -294,7 +359,7 @@ if __name__ == "__main__":
 
     # Our method with meta-learned gains
     print('meta trained adaptive ctrl ...', flush=True)
-    filename = os.path.join('data', 'training_results','rvg','act_{}'.format(act), 'ctrl_pen_{}'.format(ctrl_pen),'seed={}_M={}.pkl'.format(seed, M))
+    filename = os.path.join('data', 'training_results','rvg','model_uncertainty','sat','act_{}'.format(act), 'ctrl_pen_{}'.format(ctrl_pen),'seed={}_M={}.pkl'.format(seed, M))
     with open(filename, 'rb') as file:
         train_results = pickle.load(file)
     
@@ -350,15 +415,25 @@ if __name__ == "__main__":
     axes[-1].set_xlabel('Time [s]')
     fig.suptitle('Wave Loads vs Time for Each DOF', y=0.95)  # Adjusted y position
     plt.tight_layout(rect=[0, 0, 1, 0.96])  # Leave space for the suptitle
-    plt.show()
+    
 
     for method in ('pid', 'adaptive_ctrl'):
         if method == 'pid':
             print('PID Ctrl...', flush=True)
-            params = {
-                'W': [jnp.zeros((1, 2*num_dof)), ],
-                'b': [jnp.inf * jnp.ones((1,)), ],
+            params_pid = {
+                'Kp': jnp.array([7.642e+04, 6.0000e+05, 9.9626e+06]),
+                'Ki': jnp.array([2.1456e+00, 2.4660e+00, 9.9990e+01]),
+                'Kd': jnp.array([1.0500e+05, 1.000e+04, 3.0931e+02]),
             }
+            integral_abs_limit_val = 10   
+            q, dq, u, τ, r, dr = simulate_pid(ts, w, params_pid, num_dof, integral_abs_limit_val)
+            e = np.concatenate((q - r, dq - dr), axis=-1)
+            test_results[method] = {
+                'params': params_pid,
+                't': ts, 'q': q, 'dq': dq, 'r': r, 'dr': dr,
+                'u': u, 'τ': τ, 'e': e,
+            }
+
         else:
             with open(filename, 'rb') as file:
                 train_results = pickle.load(file)
@@ -367,19 +442,19 @@ if __name__ == "__main__":
                 'b': train_results['model']['b'],
             }
             print('Adaptive ctrl self tuned...', flush=True)
-        params['Λ'] = λ * jnp.eye(num_dof)
-        params['K'] = k * jnp.eye(num_dof)
-        params['P'] = p * jnp.eye(num_dof)
-        q, dq, u, τ, r, dr, f_hat = simulate(ts, w, params, ref)
-        e = np.concatenate((q - r, dq - dr), axis=-1)
-        test_results[method] = {
-            'params': params,
-            't': ts, 'q': q, 'dq': dq, 'r': r, 'dr': dr,
-            'u': u, 'τ': τ, 'e': e,
-        }
+            params['Λ'] = λ * jnp.eye(num_dof)
+            params['K'] = k * jnp.eye(num_dof)
+            params['P'] = p * jnp.eye(num_dof)
+            q, dq, u, τ, r, dr, f_hat = simulate(ts, w, params, ref)
+            e = np.concatenate((q - r, dq - dr), axis=-1)
+            test_results[method] = {
+                'params': params,
+                't': ts, 'q': q, 'dq': dq, 'r': r, 'dr': dr,
+                'u': u, 'τ': τ, 'e': e,
+            }
 
     # Save the test results.
-    output_path = os.path.join('data', 'testing_results','rvg','train_act_{}'.format(act),'four_corner','test_act_{}'.format(test_act),'ctrl_pen_{}'.format(ctrl_pen),'seed={}_M={}.pkl'.format(seed, M))
+    output_path = os.path.join('data', 'testing_results','rvg','model_uncertainty','train_act_{}'.format(act),'four_corner','test_act_{}'.format(test_act),'ctrl_pen_{}'.format(ctrl_pen),'seed={}_M={}.pkl'.format(seed, M))
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     # Save
     with open(output_path, 'wb') as file:
@@ -409,7 +484,6 @@ if __name__ == "__main__":
     axes[-1].set_xlabel('Time [s]')
     fig.suptitle('Wave Loads vs Time for Each DOF', y=0.95)  # Adjusted y position
     plt.tight_layout(rect=[0, 0, 1, 0.96])  # Leave space for the suptitle
-    plt.show()
     #--------------------------------------------------------------------
     # Plotting
     #--------------------------------------------------------------------
@@ -421,11 +495,11 @@ if __name__ == "__main__":
     # Load the test results
     which_test = 'four_corner'
     print("Loading test results...")
-    with open('data/testing_results/rvg/train_act_{}/{}/test_act_{}/ctrl_pen_{}/seed={}_M={}.pkl'.format(act,which_test,test_act,ctrl_pen,seed,M), 'rb') as file:
+    with open('data/testing_results/rvg/model_uncertainty/train_act_{}/{}/test_act_{}/ctrl_pen_{}/seed={}_M={}.pkl'.format(act,which_test,test_act,ctrl_pen,seed,M), 'rb') as file:
         results = pickle.load(file)
 
     # Create figures directory if it doesn't exist
-    os.makedirs('figures/rvg/train_act_{}/{}/test_act_{}/ctrl_pen_{}/seed={}_M={}'.format(act,which_test,test_act,ctrl_pen, seed, M), exist_ok=True)
+    os.makedirs('figures/rvg/model_uncertainty/train_act_{}/{}/test_act_{}/ctrl_pen_{}/seed={}_M={}'.format(act,which_test,test_act,ctrl_pen, seed, M), exist_ok=True)
 
     # Check what keys are actually available in the results
     print("Available methods:", [key for key in results.keys() if key not in ['w', 'gains']])
@@ -477,7 +551,7 @@ if __name__ == "__main__":
 
     axes1[2].set_xlabel('Time (s)')
     plt.tight_layout()
-    plt.savefig('figures/rvg/train_act_{}/{}/test_act_{}/ctrl_pen_{}/seed={}_M={}/position_tracking.png'.format(act,which_test,test_act,ctrl_pen,seed,M), dpi=300)
+    plt.savefig('figures/rvg/model_uncertainty/train_act_{}/{}/test_act_{}/ctrl_pen_{}/seed={}_M={}/position_tracking.png'.format(act,which_test,test_act,ctrl_pen,seed,M), dpi=300)
 
     # Continue with the rest of your plotting code using the dynamically determined methods
     # Figure 2: 2D trajectory plot
@@ -493,7 +567,7 @@ if __name__ == "__main__":
     ax2.grid(True)
     ax2.legend()
     ax2.set_aspect('equal')
-    plt.savefig('figures/rvg/train_act_{}/{}/test_act_{}/ctrl_pen_{}/seed={}_M={}/trajectory_2d.png'.format(act,which_test,test_act,ctrl_pen,seed,M), dpi=300)
+    plt.savefig('figures/rvg/model_uncertainty/train_act_{}/{}/test_act_{}/ctrl_pen_{}/seed={}_M={}/trajectory_2d.png'.format(act,which_test,test_act,ctrl_pen,seed,M), dpi=300)
 
     # Rest of your plotting code with the dynamic methods list...
     # Figure 3: Tracking errors
@@ -514,7 +588,7 @@ if __name__ == "__main__":
 
     axes3[2].set_xlabel('Time (s)')
     plt.tight_layout()
-    plt.savefig('figures/rvg/train_act_{}/{}/test_act_{}/ctrl_pen_{}/seed={}_M={}/tracking_errors.png'.format(act,which_test,test_act,ctrl_pen,seed,M), dpi=300)
+    plt.savefig('figures/rvg/model_uncertainty/train_act_{}/{}/test_act_{}/ctrl_pen_{}/seed={}_M={}/tracking_errors.png'.format(act,which_test,test_act,ctrl_pen,seed,M), dpi=300)
 
     # Figure 4: Control efforts
     fig4, axes4 = plt.subplots(3, 1, figsize=(10, 12), sharex=True)
@@ -533,7 +607,7 @@ if __name__ == "__main__":
 
     axes4[2].set_xlabel('Time (s)')
     plt.tight_layout()
-    plt.savefig('figures/rvg/train_act_{}/{}/test_act_{}/ctrl_pen_{}/seed={}_M={}/control_efforts_cmd.png'.format(act,which_test,test_act,ctrl_pen,seed,M), dpi=300)
+    plt.savefig('figures/rvg/model_uncertainty/train_act_{}/{}/test_act_{}/ctrl_pen_{}/seed={}_M={}/control_efforts_cmd.png'.format(act,which_test,test_act,ctrl_pen,seed,M), dpi=300)
 
     # Figure 4: Control efforts
     fig4, axes4 = plt.subplots(3, 1, figsize=(10, 12), sharex=True)
@@ -552,7 +626,7 @@ if __name__ == "__main__":
 
     axes4[2].set_xlabel('Time (s)')
     plt.tight_layout()
-    plt.savefig('figures/rvg/train_act_{}/{}/test_act_{}/ctrl_pen_{}/seed={}_M={}/control_efforts_u_after.png'.format(act,which_test,test_act,ctrl_pen,seed,M), dpi=300)
+    plt.savefig('figures/rvg/model_uncertainty/train_act_{}/{}/test_act_{}/ctrl_pen_{}/seed={}_M={}/control_efforts_u_after.png'.format(act,which_test,test_act,ctrl_pen,seed,M), dpi=300)
 
     # Figure 5: RMS error comparison
     if len(methods) > 1:  # Only make comparison if we have multiple methods
@@ -571,7 +645,6 @@ if __name__ == "__main__":
         ax5.set_xticklabels(coord_labels)
         ax5.legend()
         plt.tight_layout()
-        plt.savefig('figures/rvg/train_act_{}/{}/test_act_{}/ctrl_pen_{}/seed={}_M={}/rms_error_comparison.png'.format(act,which_test,test_act,ctrl_pen,seed,M), dpi=300)
+        plt.savefig('figures/rvg/model_uncertainty/train_act_{}/{}/test_act_{}/ctrl_pen_{}/seed={}_M={}/rms_error_comparison.png'.format(act,which_test,test_act,ctrl_pen,seed,M), dpi=300)
 
     print("Plots saved")
-    plt.show()

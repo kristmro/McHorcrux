@@ -50,17 +50,8 @@ def plant_6(q, dq, u, f_ext, prior=prior_6dof):
     dq = R @ dq
     return dq, six2threeDOF(ddq)
 
-def zero_prior(q, dq):
-    """Return zero dynamics so the controller has no model feed-forward."""
-    n = q.size
-    Z = jnp.zeros((n, n))
-    return Z, Z, jnp.zeros((n,)), jnp.eye(n)   # M, D, G, R
 
 
-# def plant_6dof(q, dq, u, f_ext, prior=prior_6dof):
-#     M, D, G, R, J = prior(q, dq)
-#     jnp.where(u.shape[0] == 6,  ddq = jax.scipy.linalg.solve(M, f_ext + J @ u - D @ dq - G @ q, assume_a='pos'))
-#     return ddq
 
 def disturbance(wave_parm, key, N=15,
                 config_file="data/vessel_data/rvg/rvg.json"):
