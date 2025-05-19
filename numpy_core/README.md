@@ -13,7 +13,7 @@ This directory hosts a **NumPy-based** motion-control pipeline for the **C/S Arc
 
 2. **Adaptive Controllers**  
    - Available in [`controllers/`](./controllers).  
-   - Handles surge-speed and heading control under wave disturbances (e.g., backstepping-like approaches, MRAC-based control).
+   - Handles surge-speed and heading control under wave disturbances (e.g. MRAC-based control).
 
 3. **Thruster Allocation**  
    - In [`allocations/allocator_psudo.py`](./allocations/allocator_psudo.py).  
@@ -46,45 +46,6 @@ This directory hosts a **NumPy-based** motion-control pipeline for the **C/S Arc
    pip install git+https://github.com/NTNU-MCS/mclsimpy.git@master
    ```
 
----
-
-## Directory Overview
-
-```
-numpy_core/
-├── allocations/
-│   ├── allocator_psudo.py       # Thruster allocation using pseudo-inverse
-│   └── __init__.py
-├── controllers/
-│   ├── adaptive_fs_controller.py # Adaptive backstepping-like approach (wave force estimation)
-│   ├── adaptive_seakeeping.py    # MRAC-based heading & surge control
-│   └── __init__.py
-├── gym/
-│   ├── mc_gym_csad_numpy.py      # "MC-Gym": 6-DOF vessel + wave loads + RL/MPC interface
-│   └── __init__.py
-├── main/
-│   ├── adap_fs_main.py           # Demo script: run the adaptive FS controller in MC-Gym
-│   ├── ekfmain.py                # Demo script: run environment + EKF observer
-│   ├── seekeeping_main.py        # Demo script: run MRAC-based seakeeping controller
-│   └── __init__.py
-├── observers/
-│   ├── ekf.py                    # Extended Kalman Filter
-│   ├── ltv_kf.py                 # Linear time-varying Kalman Filter
-│   ├── nonlinobs.py              # Nonlinear observer (placeholder)
-│   └── __init__.py
-├── ref_gen/
-│   ├── reference_filter.py       # 3rd-order reference filter (ThrdOrderRefFilter)
-│   └── __init__.py
-├── thruster/
-│   ├── thruster.py               # Simplified thruster model
-│   ├── thruster_data.py          # Thruster performance curves
-│   ├── thruster_dynamics.py      # Basic thruster dynamics
-│   └── __init__.py
-├── utils.py                      # Helper utilities for rotation, wave modeling, etc.
-└── __init__.py
-```
-
----
 
 ## Usage
 
@@ -121,8 +82,6 @@ Feel free to explore the docstrings in [`mc_gym_csad_numpy.py`](./gym/mc_gym_csa
 ---
 
 ## Future Development
-
-- **Meta-Learning & MBRL**: Legacy code for advanced learning approaches has been removed from this directory. The environment remains open to future RL, MPC, or adaptive control methods.  
 - **Extended Observers & State Estimation**: Additional observer designs (e.g., UKF, Particle Filters) can be added for better state estimation in rough seas.  
 - **Task/Reward Design**: The environment is ready for custom tasks (docking, collision avoidance, etc.). Expand the reward function, obstacles, or dynamic goals to suit your project needs.
 

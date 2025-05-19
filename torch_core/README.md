@@ -1,6 +1,6 @@
 # Torch Core
 
-This directory provides a **PyTorch-based** simulation and control pipeline for the **C/S Arctic Drillship (CSAD)** model from Marine Cybernetics (NTNU). It replicates the logic of the NumPy-based MC-Gym but uses **PyTorch** to enable end-to-end differentiability and potentially gradient-based learning or optimization methods.
+This directory provides a **PyTorch-based** simulation and control pipeline for the **C/S Arctic Drillship (CSAD)**, **R/V Gunnerus** and **C/S Voyager** models from Marine Cybernetics (NTNU). It replicates the logic of the NumPy-based MC-Gym but uses **PyTorch** to enable end-to-end differentiability and potentially gradient-based learning or optimization methods.
 
 Example of use with meta-learning: [*Online-Meta-Adaptive-Control*](https://github.com/GuanyaShi/Online-Meta-Adaptive-Control/tree/main)
 
@@ -37,54 +37,12 @@ Example of use with meta-learning: [*Online-Meta-Adaptive-Control*](https://gith
 
 ---
 
-## Directory Structure
-
-```
-torch_core/
-├── allocations/
-│   ├── allocation_psudo.py          # Thruster allocation in Torch or bridging code
-│   └── __init__.py
-├── controllers/
-│   ├── model_based.py               # Example differentiable model-based controller
-│   ├── pid.py                       # Torch-friendly PID controller
-│   └── __init__.py
-├── gym/
-│   ├── mc_gym_csad_torch.py         # Differentiable MC-Gym environment (step/reset)
-│   └── __init__.py
-├── main/
-│   ├── model_pd_main.py            # Demo: model-based PD control
-│   ├── pid_main.py                  # Demo: simple PID loop
-│   └── __init__.py
-├── ref_gen/
-│   ├── reference_filter.py          # ThrdOrderRefFilter in Torch
-│   └── __init__.py
-├── simulator/
-│   ├── __init__.py
-│   ├── utils.py                     # Shared transforms, wave logic
-│   ├── vessels/
-│   │   ├── csad_torch.py           # Torch-based 6DOF vessel model
-│   │   ├── vessel_torch.py         # Possibly a base vessel class
-│   │   └── __init__.py
-│   └── waves/
-│       ├── wave_load_torch.py      # Wave forcing in Torch
-│       ├── wave_spectra_torch.py   # Torch-based JONSWAP, etc.
-│       └── __init__.py
-├── thruster/
-│   ├── thruster_data.py            # Thruster performance definitions
-│   ├── thruster_dynamics.py        # Torch-based thruster dynamics
-│   └── thruster.py
-├── utils.py                         # Additional bridging utilities (NumPy ↔ Torch)
-└── __init__.py
-```
-
----
-
 ## Usage
 
 1. **Install Requirements**  
    - **PyTorch**:  
      ```bash
-     pip install torch torchvision torchaudio
+     pip install torch torchvision 
      ```  
    - **NumPy**, **matplotlib**, **pygame** (for wave parameters, plotting, or real-time rendering):
      ```bash
@@ -103,15 +61,41 @@ torch_core/
 3. **Gym-Like API**  
    ```python
    from torch_core.gym.mc_gym_csad_torch import McGym
+   import torch
+   # -----------------------------
+   #  Constants and Scaling Factors
+   # -----------------------------
+   LAMBDA = 1 / 90  # Model scaling factor
+   TIME_SCALE = np.sqrt(LAMBDA)  # Time scaling
+   WAVE_HEIGHT_SCALE = LAMBDA  # Scale wave height accordingly
 
-   env = McGym(dt=0.1, grid_width=15, grid_height=6, render_on=True)
-   obs = env.reset()
+   # -----------------------------
+   #  Simulation Parameters
+   # -----------------------------
+   dt = 0.01   # Time step 
+   simtime = 450   # Total simulation
+   start_pos = (2.0, 2.0, 0.0)  # (north, east, heading)
+
+   # Define wave conditions
+   wave_conditions = (2.0 * WAVE_HEIGHT_SCALE, 8.0 * TIME_SCALE, 180.0)  # Scaled wave properties
+
+   env = McGym(dt=dt, final_plot=True, render_on=True)
+   env.set_task(start_pos=start_pos,  
+            wave_conditions=wave_conditions, 
+            four_corner_test=True, 
+            simtime=simtime,
+            ref_omega=[0.3, 0.3, 0.15] #reference gains
+            )
    done = False
+   ctrl = torch.zeros[6]
    while not done:
-       action = [0.0, 0.0, 0.0]  # e.g. zero control or from RL policy
-       obs, done, info, reward = env.step(action)
+      # Get reference trajectory from four-corner test
+      eta_d, nu_d, eta_d_ddot, eta_d_dot = env.get_four_corner_nd(step_count) #2 speed ref, BODY/NED
+      state, done, info, reward = env.step(ctrl) #can also use env.get_state()
+
+
    ```
-   - Returned `obs` is a dictionary with `'eta'`, `'nu'`, `'goal'`, etc.  
+   - Returned `state` is a dictionary with `'eta'`, `'nu'`, `'goal'`, etc.  
    - **Note**: Some arrays remain NumPy-based after `.cpu().numpy()` conversions.
 
 4. **Differentiability Caveats**  
@@ -122,14 +106,14 @@ torch_core/
 5. **Plotting & Visualization**  
    - Use `render_on=True` for **pygame** real-time rendering.  
    - The environment logs boat state/velocity in Python lists, which are converted to NumPy for **matplotlib** after simulation.  
-   - Call `env.plot_trajectory()` (if implemented) once `done` to visualize the final results.
+   - Use `final_plot=True`
 
 ---
 
 ## Known Limitations & TODO
 
-- **Hardcoded CPU Usage**: The environment does not automatically detect GPU devices. Adjust the code to move Tensors or modules to `cuda` if desired.  
-- **NumPy Dependencies**: Large portions of wave initialization and randomization are still in NumPy. For end-to-end backprop or GPU usage, consider rewriting them in Torch.  
+- **Hardcoded CPU Usage**: The environment does not automatically detect GPU devices. Adjust the code to move Tensors. 
+- **NumPy Dependencies**: Large portions of wave initialization and randomization are still in NumPy. For end-to-end backprop or GPU usage, consider rewriting them in Torch or Cuda.  
 - **Action/Observation Spaces**: Not fully specified in a standard Gym `Box` format. Extend as needed for RL libraries.  
 
 ---
