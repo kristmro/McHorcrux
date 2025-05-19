@@ -304,10 +304,15 @@ if __name__ == "__main__":
         v, dv = dr - Λ@e, ddr - Λ@de
         s = de + Λ@e
 
+        # def sat(s):
+        #     """Saturation function."""
+        #     phi = 7
+        #     return jnp.where(jnp.abs(s/phi) > 1, jnp.sign(s), s/phi)
         def sat(s):
             """Saturation function."""
-            phi = 7
-            return jnp.where(jnp.abs(s/phi) > 1, jnp.sign(s), s/phi)
+            espilon_1=5
+            espilon_2=7
+            return jnp.tanh(s/espilon_1) * (espilon_2+1)
         # Controller and adaptation law
         M, D, G, R = prior(q, dq)
         f_hat = A@y
@@ -377,9 +382,9 @@ if __name__ == "__main__":
         'b': [0.1*jax.random.normal(subkeys_b[i], (shapes[i][0],))
               for i in range(num_hlayers)],
         'gains': {
-            'Λ': jnp.log(1) + 0.1 * jax.random.normal(subkeys_gains[0], (num_dof,)),  # Set Λ to 5 for all DOFs
-            'K': jnp.log(10) + 0.1 * jax.random.normal(subkeys_gains[1], (num_dof,)),   # Set K to 100 for all DOFs
-            'P': jnp.log(10) + 0.1 * jax.random.normal(subkeys_gains[2], (num_dof,))   # Set P to 100 for all DOFs
+            'Λ': jnp.log(1) + 0.1 * jax.random.normal(subkeys_gains[0], (num_dof,)),  # Set Λ to 1 for all DOFs
+            'K': jnp.log(10) + 0.1 * jax.random.normal(subkeys_gains[1], (num_dof,)),   # Set K to 10 for all DOFs
+            'P': jnp.log(10) + 0.1 * jax.random.normal(subkeys_gains[2], (num_dof,))   # Set P to 10 for all DOFs
         }
     }
 
@@ -595,7 +600,7 @@ if __name__ == "__main__":
         },
         'controller': best_meta_params['gains'],
     }
-    output_path = os.path.join('data', 'training_results','rvg','model_uncertainty','sat','act_{}'.format(act),'ctrl_pen_{}'.format(ctrl_pen), output_name + '.pkl')
+    output_path = os.path.join('data', 'training_results','rvg','model_uncertainty','tanh','act_{}'.format(act),'ctrl_pen_{}'.format(ctrl_pen), output_name + '.pkl')
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, 'wb') as file:
         pickle.dump(results, file)

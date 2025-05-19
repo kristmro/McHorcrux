@@ -16,7 +16,7 @@ for seed in {0..2}
 do
     for M in 2 5 10 20
     do
-        file_path="data/training_results/rvg/model_uncertainty/sat/act_off/ctrl_pen_6/seed=${seed}_M=${M}.pkl"
+        file_path="data/training_results/rvg/model_uncertainty/tanh/act_off/ctrl_pen_6/seed=${seed}_M=${M}.pkl"
         if [ -f "$file_path" ]; then
             echo "File $file_path exists. Skipping."
         else

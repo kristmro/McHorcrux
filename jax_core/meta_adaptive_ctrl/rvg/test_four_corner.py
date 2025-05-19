@@ -203,7 +203,7 @@ if __name__ == "__main__":
             # Control input and adaptation law
             def sat(s):
                 """Saturation function."""
-                phi = 20
+                phi = 7
                 return jnp.where(jnp.abs(s/phi) > 1, jnp.sign(s), s/phi)
             M_mat, D, G, R = prior(q, dq)
             τ = M_mat @ dv + D @ v + G @ e - f_hat - K @ sat(s)
@@ -308,14 +308,16 @@ if __name__ == "__main__":
             qs, dqs = odeint(ode, (q_prev, dq_prev), jnp.array([t_prev, t]), u_prev)
             q, dq = qs[-1], dqs[-1]
 
+
+            r_prev,_,_ = ref_fn(t_prev)
             r, dr, _ = ref_fn(t)
             e, de = q - r, dq - dr
             dt = t - t_prev
             # Using the trapezoidal rule
-            I = I_prev + 0.5 * (e + (q_prev - r)) * dt
+            I = I_prev + 0.5 * (e + (q_prev - r_prev)) * dt
             I = jnp.clip(I, I_min_limits, I_max_limits)
 
-            M_mat, D, G, R = prior_fn(q, dq)
+            _, _, _, R = prior_fn(q, dq)
             
             τ = -(Kp_mat @ e + Ki_mat @ I + Kd_mat @ de)
             u = jnp.linalg.solve(R, τ)  
@@ -345,7 +347,7 @@ if __name__ == "__main__":
     # Choose wave parameters, fixed control gains, and simulation times
     num_dof = 3
     key = jax.random.PRNGKey(seed)
-    w = disturbance(jnp.array((3.0, 15.0, 0)), key)
+    w = disturbance(jnp.array((7.0, 19.0, 0)), key)
     λ, k, p = 10.0, 50.0, 50.0
     T, dt = T_sim, dt
     ts = jnp.arange(0, T + dt, dt)
@@ -421,9 +423,9 @@ if __name__ == "__main__":
         if method == 'pid':
             print('PID Ctrl...', flush=True)
             params_pid = {
-                'Kp': jnp.array([7.642e+04, 6.0000e+05, 9.9626e+06]),
-                'Ki': jnp.array([2.1456e+00, 2.4660e+00, 9.9990e+01]),
-                'Kd': jnp.array([1.0500e+05, 1.000e+04, 3.0931e+02]),
+                'Kp': jnp.array([8.8603e+04, 9.6996e+06, 8.8149e+06]),
+                'Ki': jnp.array([1.5494e+01, 4.7215e+01, 1.7311e+00]),
+                'Kd': jnp.array([1.0000e+06, 1.0000e+06, 1.3911e+04]),
             }
             integral_abs_limit_val = 10   
             q, dq, u, τ, r, dr = simulate_pid(ts, w, params_pid, num_dof, integral_abs_limit_val)

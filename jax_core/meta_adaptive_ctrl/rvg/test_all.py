@@ -178,8 +178,18 @@ def simulate_adaptive(ts, wl, t_knots, coefs, params, min_ref=min_ref, max_ref=m
         e, de = q - r, dq - dr
         s = de + Λ @ e
         v, dv = dr - Λ @ e, ddr - Λ @ de
+        # def sat(s):
+        #     """Saturation function."""
+        #     phi = 7
+        #     return jnp.where(jnp.abs(s/phi) > 1, jnp.sign(s), s/phi)
+        def sat(s):
+            """Saturation function."""
+            espilon_1=5
+            espilon_2=7
+            return jnp.tanh(s/espilon_1) * (espilon_2+1)
+        # Controller and adaptation law
         M, D, G, R = prior(q, dq)
-        τ = M @ dv + D @ v + G @ q - f_hat - K @ s
+        τ = M@dv + D@v + G@e - f_hat - K @ sat(s)
         u = jnp.linalg.solve(R, τ)
         return u, τ
 
@@ -234,13 +244,13 @@ def simulate_adaptive(ts, wl, t_knots, coefs, params, min_ref=min_ref, max_ref=m
 @jax.jit
 @partial(jax.vmap, in_axes=(None, 0, 0, 0, None))
 def simulate_pid(ts, wl, t_knots, coefs, params,
-                 min_ref=min_ref, max_ref=max_ref,
+                 min_ref=min_ref, max_ref=max_ref,prior=prior,
                  plant=plant, disturbance=wave_load):
     """Simulate closed-loop system with a vector PID controller."""
 
-    Kp_mat = params['Kp'] * jnp.eye(num_dof)
-    Ki_mat = params['Ki'] * jnp.eye(num_dof)
-    Kd_mat = params['Kd'] * jnp.eye(num_dof)
+    Kp_mat = jnp.diag(params['Kp'])
+    Ki_mat = jnp.diag(params['Ki'])
+    Kd_mat = jnp.diag(params['Kd'])
 
     # ---- reference spline ----------------------------------------------
     def reference(t):
@@ -269,14 +279,16 @@ def simulate_pid(ts, wl, t_knots, coefs, params,
         qs, dqs = odeint(ode, (q_prev, dq_prev), jnp.array([t_prev, t]), u_prev)
         q, dq = qs[-1], dqs[-1]
 
+        r_prev,_,_ = ref_derivatives(t_prev)
         r, dr, _ = ref_derivatives(t)
         e, de = q - r, dq - dr
         dt = t - t_prev
         # Using the trapezoidal rule
-        I = I_prev + 0.5 * (e + (q_prev - r)) * dt
-
+        I = I_prev + 0.5 * (e + (q_prev - r_prev)) * dt
+        
         τ = -(Kp_mat @ e + Ki_mat @ I + Kd_mat @ de)
-        u = τ  # direct actuation
+        _, _, _, R = prior(q, dq)
+        u = jnp.linalg.solve(R, τ)
 
         new_carry = (t, q, dq, u, I)
         out_slice = (q, dq, u, τ, r, dr)
@@ -326,10 +338,10 @@ if __name__ == "__main__":
             "Λ": (30.0,),
             "K": (50.0, 5000.0),
             "P": (50.0, 5000.0),
-            # PID-only grid (could be different – reuse same tuples here)
-            "Kp": (5e+4,),
-            "Ki": (1e+3, 5e+3),
-            "Kd": (1e+3, 5e+3),
+            # PID-only grid 
+            "Kp": (jnp.array([8.8603e+04, 9.6996e+06, 8.8149e+06]),),
+            "Ki": (jnp.array([1.4856e+01, 2.5148e+04, 8.6869e+02]),jnp.array([1.5494e+01, 4.7215e+01, 1.7311e+00])),
+            "Kd": (jnp.array([1.0000e+06, 1.0000e+06, 9.8118e+05]), jnp.array([1.0000e+06, 1.0000e+06, 1.3911e+04])),
         },
     }
     # grid shapes (adaptive and PID use different sets but same length tuples)
@@ -353,8 +365,9 @@ if __name__ == "__main__":
         "training_results",
         "rvg",
         "model_uncertainty",
+        "tanh",
         "act_off",
-        "ctrl_pen_7",
+        "ctrl_pen_6",
         f"seed={hparams['seed']}_M={hparams['num_subtraj']}.pkl",
     )
     with open(train_path, "rb") as f:
@@ -429,9 +442,9 @@ if __name__ == "__main__":
         test_results["gains"]["Ki"],
         test_results["gains"]["Kd"],),total=np.prod(grid_shape_pid),
     ):
-        params_pid['Kp'] = Kp_gain * jnp.eye(num_dof)
-        params_pid['Ki'] = Ki_gain * jnp.eye(num_dof)
-        params_pid['Kd'] = Kd_gain * jnp.eye(num_dof)
+        params_pid['Kp'] = Kp_gain          # (shape (3,))
+        params_pid['Ki'] = Ki_gain
+        params_pid['Kd'] = Kd_gain
         q, dq, u, τ, r, dr = simulate_pid(ts, wl_batched, t_knots, coefs, params_pid)
         e = np.concatenate((q - r, dq - dr), axis=-1)
         rms_e = np.sqrt(np.mean(np.sum(e**2, axis=-1), axis=-1))
@@ -450,9 +463,10 @@ if __name__ == "__main__":
         "testing_results",
         "rvg",
         "model_uncertainty",
+        "tanh",
         "all",
         "act_off",
-        "ctrl_pen_7",
+        "ctrl_pen_6",
     )
     os.makedirs(out_dir, exist_ok=True)
     out_path = os.path.join(out_dir, f"seed={hparams['seed']}_M={hparams['num_subtraj']}.pkl")

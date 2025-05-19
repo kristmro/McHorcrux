@@ -20,6 +20,7 @@ import pickle
 import time
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import jax
 import jax.numpy as jnp
 from jax.experimental.ode import odeint
@@ -86,7 +87,7 @@ def make_reference_spline(key):
 # ---------------------------------------------------------------------#
 def make_wave(key):
     key, subkey = jax.random.split(key)
-    hs, tp, wdir = 0.0, 12.0, 0.0        # moderate sea state
+    hs, tp, wdir = 0.0, 15.0, 0.0        # moderate sea state
     wl = disturbance((hs, tp, wdir), subkey)
     return key, wl
 
@@ -131,12 +132,13 @@ def simulate_pid(ts, wl, t_knots, coefs, Kp, Ki, Kd, integral_abs_limit, prior=p
         qs, dqs = odeint(ode, (q_prev, dq_prev), jnp.array([t_prev, t]), u_prev)
         q, dq = qs[-1], dqs[-1]
 
+        r_prev,_,_ = ref_derivatives(t_prev)
         r, dr, _ = ref_derivatives(t)
         e, de = q - r, dq - dr
         dt = t - t_prev
 
         # Calculate candidate integral update based on original formula
-        delta_I = 0.5 * (e + (q_prev - r)) * dt
+        delta_I = 0.5 * (e + (q_prev - r_prev)) * dt
         I_candidate = I_prev + delta_I
 
         # Apply integral clamping for anti-windup
@@ -168,9 +170,10 @@ def simulate_pid(ts, wl, t_knots, coefs, Kp, Ki, Kd, integral_abs_limit, prior=p
     dr = jnp.vstack((dr0, dr))
 
     e = jnp.concatenate((q - r, dq - dr), axis=-1)
+    e = e.at[:, -1].set(e[:, -1] * 9.0) # heading error because it is in the e-1 region instead of 0
     rms_cost = jnp.sqrt(jnp.mean(jnp.sum(e**2, axis=-1)))
     safe_rms_cost = jnp.nan_to_num(rms_cost, nan=jnp.inf)
-    return safe_rms_cost
+    return q, r, safe_rms_cost
 
 simulate_pid_jit = jax.jit(simulate_pid, static_argnames=['integral_abs_limit']) # XLA-compile once
 
@@ -183,7 +186,7 @@ NUM_ITER    = 15          # generations
 DIM         = NUM_DOF * 3 # 9 log-gain parameters
 
 init_mean = jnp.array([3.0, 3.0, 3.0,  # log10 Kp
-                       2.0, 2.0, 2.0,  # log10 Ki
+                       2.0, 2.0, 0.0,  # log10 Ki
                        3.5, 3.5, 3.5]) # log10 Kd
 init_std  = jnp.ones(DIM) * 1.0        # one order of magnitude spread
 
@@ -219,15 +222,20 @@ def cem_optimize(key, mean, std, ts, wl, t_knots, coefs, integral_abs_limit):
     log_ranges = log_maxs - log_mins
     
     epsilon = 1e-6 # Small constant for numerical stability
+    all_best_costs_per_iteration = [] # Store best cost for each iteration
 
     @jax.jit
-    def batch_cost(log10_batch):
-        Kp, Ki, Kd = jnp.split(10 ** log10_batch, 3, axis=-1)
+    def batch_simulate_and_cost(log10_batch):
+        Kp_batch, Ki_batch, Kd_batch = jnp.split(10 ** log10_batch, 3, axis=-1)
 
-        return jax.vmap(
+        # vmap over simulate_pid_jit which now returns (q, r, cost)
+        # We only need the cost for CEM optimization logic here.
+        # The full trajectories q and r are not needed for each sample within CEM.
+        _qs, _rs, costs = jax.vmap(
             simulate_pid_jit,
-            in_axes=(None, None, None, None, 0, 0, 0, None) # Pass integral_abs_limit as a static argument
-        )(ts, wl, t_knots, coefs, Kp, Ki, Kd, integral_abs_limit)
+            in_axes=(None, None, None, None, 0, 0, 0, None)
+        )(ts, wl, t_knots, coefs, Kp_batch, Ki_batch, Kd_batch, integral_abs_limit)
+        return costs
 
     for i in range(NUM_ITER): # Modified to get iteration number
         key, subkey = jax.random.split(key)
@@ -263,7 +271,7 @@ def cem_optimize(key, mean, std, ts, wl, t_knots, coefs, integral_abs_limit):
         samples = log_mins + log_ranges * beta_draws
         # --- End of Beta sampling ---
         
-        costs    = batch_cost(samples)
+        costs = batch_simulate_and_cost(samples) # Use the new batch simulation function
 
         elite_k  = int(NUM_SAMPLES * ELITE_FRAC)
         elite_ix = jnp.argsort(costs)[:elite_k]
@@ -276,12 +284,56 @@ def cem_optimize(key, mean, std, ts, wl, t_knots, coefs, integral_abs_limit):
         if current_iter_best_cost < best_cost:
             best_cost  = current_iter_best_cost
             best_gains = samples[elite_ix[0]]
+        
+        all_best_costs_per_iteration.append(best_cost) # Store the overall best cost so far for this iteration
 
         # Print progress (this will cause synchronization and slow down execution)
         print(f"Iteration {i + 1}/{NUM_ITER}: Best cost in iteration: {current_iter_best_cost.item():.4e}, Overall best: {best_cost.item():.4e}")
 
     Kp, Ki, Kd = jnp.split(10 ** best_gains, 3)
-    return (Kp, Ki, Kd), best_cost
+    return (Kp, Ki, Kd), best_cost, all_best_costs_per_iteration
+
+
+# ---------------------------------------------------------------------#
+#  Plotting functions                                                  #
+# ---------------------------------------------------------------------#
+def plot_loss_over_iterations(costs_history, seed, figures_dir):
+    """Plots the loss over iterations and saves the figure."""
+    plt.figure(figsize=(10, 6))
+    plt.plot(range(1, len(costs_history) + 1), costs_history, marker='o', linestyle='-')
+    plt.xlabel("Iteration")
+    plt.ylabel("Best RMS Cost (log scale)")
+    plt.yscale('log')
+    plt.title(f"CEM Optimization: Best Cost per Iteration (Seed {seed})")
+    plt.grid(True, which="both", ls="-")
+    fig_path = figures_dir / f"loss_over_iterations_seed_{seed}.png"
+    plt.savefig(fig_path)
+    plt.close()
+    print(f"Loss plot saved to {fig_path.relative_to(Path.cwd())}")
+
+def plot_simulation_trip(ts, q_actual, r_reference, seed, figures_dir, gains_label="Best Gains"):
+    """Plots the simulated trip (actual vs. reference) and saves the figure."""
+    num_dof = q_actual.shape[1]
+    fig, axes = plt.subplots(num_dof, 1, figsize=(12, 4 * num_dof), sharex=True)
+    if num_dof == 1: # Make axes an array even if it's a single subplot
+        axes = [axes]
+        
+    dof_labels = ['X (surge)', 'Y (sway)', 'Yaw (psi)']
+
+    for i in range(num_dof):
+        axes[i].plot(ts, q_actual[:, i], label=f'Actual {dof_labels[i]}')
+        axes[i].plot(ts, r_reference[:, i], label=f'Reference {dof_labels[i]}', linestyle='--')
+        axes[i].set_ylabel("Position/Angle")
+        axes[i].legend()
+        axes[i].grid(True)
+
+    axes[-1].set_xlabel("Time (s)")
+    fig.suptitle(f"Simulated Trip with {gains_label} (Seed {seed})", fontsize=16)
+    plt.tight_layout(rect=[0, 0, 1, 0.96]) # Adjust layout to make space for suptitle
+    fig_path = figures_dir / f"simulation_trip_{gains_label.lower().replace(' ', '_')}_seed_{seed}.png"
+    plt.savefig(fig_path)
+    plt.close()
+    print(f"Simulation plot saved to {fig_path.relative_to(Path.cwd())}")
 
 
 # ---------------------------------------------------------------------#
@@ -297,12 +349,28 @@ def main():
     ts    = jnp.arange(0.0, T + dt, dt)
     integral_abs_limit = HPARAMS["integral_abs_limit"]
 
+    # ------------------ setup figure directory ----------------------
+    script_root = Path(__file__).resolve().parent
+    project_root = script_root.parent.parent.parent
+    figures_dir = project_root / "figures" / "rvg" / "pid_tuning"
+    figures_dir.mkdir(parents=True, exist_ok=True)
+
     # ------------------ run CEM optimiser ---------------------------
     start = time.perf_counter()
-    (Kp_best, Ki_best, Kd_best), best_cost = cem_optimize(
+    (Kp_best, Ki_best, Kd_best), best_cost, costs_history = cem_optimize(
         key, init_mean, init_std, ts, wl, t_knots, coefs, integral_abs_limit
     )
     elapsed = time.perf_counter() - start
+
+    # ------------------ plot loss history ---------------------------
+    plot_loss_over_iterations(costs_history, args.seed, figures_dir)
+
+    # ------------------ simulate with best gains for plotting -------
+    q_final, r_final, _ = simulate_pid_jit(
+        ts, wl, t_knots, coefs, Kp_best, Ki_best, Kd_best, integral_abs_limit
+    )
+    plot_simulation_trip(ts, q_final, r_final, args.seed, figures_dir, gains_label="Best CEM Gains")
+
 
     # ------------------ print results -------------------------------
     print("\n=== best gain triplet (CEM) ===")
@@ -330,8 +398,6 @@ def main():
                  iterations=NUM_ITER, init_mean=init_mean, init_std=init_std),
     )
 
-    script_root = Path(__file__).resolve().parent
-    project_root = script_root.parent.parent.parent
     out_dir = project_root / "data" / "testing_results" / "rvg" / "pid_cem_tuning"
     out_dir.mkdir(parents=True, exist_ok=True)
 
