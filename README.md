@@ -1,7 +1,5 @@
 ![image](https://github.com/user-attachments/assets/621dece1-7acf-4209-867e-8e33c4ca7d13)
 
-
-
 **OBS OBS UNDER DEVELOPMENT**
 
 This repository contains **three distinct simulation and control frameworks** designed for simulating and controlling the three 6 DOF models, **C/S Arctic Drillship**, **R/V Gunnerus** and **C/S Voyager**, under wave disturbances. Developed for Kristian Magnus Roen's master's thesis in Marine Cybernetics (2025), the repository includes:
@@ -66,10 +64,17 @@ This GIF uses the **torch_core** version of mcGym together with a custom `ModelC
   
 ![image](https://github.com/user-attachments/assets/f17a81cb-03ce-42a6-b6fc-42104676b7ce)
 
----
+## The waves and response
 
-### The waves and response of R/V Gunnerus 
-![Wave realisation of rvg](figures/vessel_motion3d__rvg_waveangle_180.gif)
+<p float="left">
+  <img src="https://github.com/user-attachments/assets/6a84c799-70f6-4aa6-961d-9042fd690af8" width="30%" />
+  <img src="https://github.com/user-attachments/assets/5d77fbc4-c723-40e1-bfc4-1e7c39a23895" width="30%" />
+</p>
+<p float="left">
+  <img src="https://github.com/user-attachments/assets/6a84c799-70f6-4aa6-961d-9042fd690af8" width="30%" />
+  <img src="https://github.com/user-attachments/assets/5d77fbc4-c723-40e1-bfc4-1e7c39a23895" width="30%" />
+</p>
+
 
 ---
 ## Installation & Requirements
