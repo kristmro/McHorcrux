@@ -49,6 +49,18 @@ This GIF uses the **torch_core** version of mcGym together with a custom `ModelC
 
 ![Four-corner DP in Torch mcGym](figures/demo_gifs/4corner_dp_torch.gif)
 
+
+## The waves and response of R/V Gunnerus
+
+<p float="left">
+  <img src="https://github.com/user-attachments/assets/6a84c799-70f6-4aa6-961d-9042fd690af8" width="30%" />
+  <img src="https://github.com/user-attachments/assets/5d77fbc4-c723-40e1-bfc4-1e7c39a23895" width="30%" />
+</p>
+<p float="left">
+  <img src="figures/demo_gifs/vessel_motion3d__rvg_waveangle_270.gif" width="30%" />
+  <img src="figures/demo_gifs/wave_motion1d_2.gif" width="60%" />
+</p>
+
 ---
 
 ##### The mean speed ratio over wave numbers [JAX and PyTorch vs NumPy]
@@ -64,19 +76,8 @@ This GIF uses the **torch_core** version of mcGym together with a custom `ModelC
   
 ![image](https://github.com/user-attachments/assets/f17a81cb-03ce-42a6-b6fc-42104676b7ce)
 
-## The waves and response of R/V Gunnerus
-
-<p float="left">
-  <img src="https://github.com/user-attachments/assets/6a84c799-70f6-4aa6-961d-9042fd690af8" width="30%" />
-  <img src="https://github.com/user-attachments/assets/5d77fbc4-c723-40e1-bfc4-1e7c39a23895" width="30%" />
-</p>
-<p float="left">
-  <img src="figures/demo_gifs/vessel_motion3d__rvg_waveangle_270.gif" width="30%" />
-  <img src="figures/demo_gifs/wave_motion1d_2.gif" width="60%" />
-</p>
-
-
 ---
+
 ## Installation & Requirements
 
 You will need:
