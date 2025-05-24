@@ -1,5 +1,4 @@
-![image](https://github.com/user-attachments/assets/621dece1-7acf-4209-867e-8e33c4ca7d13)
-
+![upscalemedia-transformed (1) (1)](https://github.com/user-attachments/assets/2da3aa74-f585-4854-91dd-c32cb1bad24b)
 **OBS OBS UNDER DEVELOPMENT**
 
 This repository contains **three distinct simulation and control frameworks** designed for simulating and controlling the three 6 DOF models, **C/S Arctic Drillship**, **R/V Gunnerus** and **C/S Voyager**, under wave disturbances. Developed for Kristian Magnus Roen's master's thesis in Marine Cybernetics (2025), the repository includes:
