@@ -6,24 +6,13 @@ This repository contains **three distinct simulation and control frameworks** de
 ### 1. `jax_core/`
 A high-performance, differentiable pipeline based on [JAX](https://github.com/jax-ml/jax) and adapted from the [mcsimpy](https://github.com/NTNU-MCS/mcsimpy) simulator. It provides **significantly enhanced computational speed** and memory efficiency, making it ideal for large-scale or repeated simulations and extensive machine learning applications like reinforcement learning. This core also features an adapted marine-focused version of the meta-trained adaptive controller from [Richards et al. (2021)](https://github.com/StanfordASL/Adaptive-Control-Oriented-Meta-Learning/tree/master) and adding model-uncertainty and training only the diagonal gains.
 
-        TODO:
-        - make a demo for how to use the controller
-        - make the correct .sh file to pipeline the training and testing for reproduction.
-        - Correct the readme file
-        
 
 ### 2. `numpy_core/`
 Features a highly modular Gym environment called **mcGym**, complete with live visualization capabilities with [pygame](https://github.com/pygame/), built around the standard [mcsimpy](https://github.com/NTNU-MCS/mcsimpy) simulator. mcGym follows an API structure similar to [OpenAI's Gym](https://github.com/openai/gym), offering standardized tasks and the flexibility to define custom scenarios, including dynamic or static obstacles influenced by wave motions. Ideal for visual testing of custom controllers and benchmark testing. 
 
-        TODO: 
-        - Correct the readme file
-
 ### 3. `torch_core/`
 A [PyTorch](https://github.com/pytorch/pytorch)-powered variant of the [mcsimpy](https://github.com/NTNU-MCS/mcsimpy) simulator designed explicitly for machine learning integration. Leveraging PyTorch’s extensive ML modules, this core excels in **deep learning** and RL and sophisticated ML-driven controller implementations, fully harnessing mcGym's capabilities.
 
-        TODO: 
-        - Correct the readme file
-        
 ---
 ## Demonstrations
 
