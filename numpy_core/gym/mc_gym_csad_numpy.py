@@ -691,6 +691,18 @@ class McGym:
         # Color the hull polygon
         pygame.draw.polygon(self.screen, (0, 100, 255), pixel_pts)
 
+    def set_reward_function(self, reward_func):
+        """
+        Set a custom reward function for the environment.
+
+        Parameters
+        ----------
+        reward_func : callable
+            A function that takes the current action and previous action as input
+            and returns a reward value.
+        """
+        self.compute_reward = reward_func
+
     def compute_reward(self, action, prev_action):
         """
         Compute a reward for the current simulation step.

@@ -415,6 +415,18 @@ class McGym:
             # no goal => end
             return True, {"reason": "no_goal"}
 
+    def set_reward_function(self, reward_func):
+        """
+        Set a custom reward function for the environment.
+
+        Parameters
+        ----------
+        reward_func : callable
+            A function that takes the current action and previous action as input
+            and returns a reward value.
+        """
+        self.compute_reward = reward_func
+        
     def compute_reward(self, action, prev_action):
         """
         Placeholder reward function for RL or performance-based control.
