@@ -14,6 +14,10 @@ Features a highly modular Gym environment called **mcGym**, complete with live v
 A [PyTorch](https://github.com/pytorch/pytorch)-powered variant of the [mcsimpy](https://github.com/NTNU-MCS/mcsimpy) simulator designed explicitly for machine learning integration. Leveraging PyTorch’s extensive ML modules, this core excels in **deep learning** and RL and sophisticated ML-driven controller implementations, fully harnessing mcGym's capabilities.
 
 ---
+## Overview
+![mcHorcrux (1)](https://github.com/user-attachments/assets/30c36695-e6f3-4d72-9f48-0b9582509c5b)
+
+---
 ## Demonstrations
 
 Below are example runs showcasing the capabilities of our different mcGym cores:
@@ -37,16 +41,18 @@ This GIF uses the **torch_core** version of mcGym together with a custom `ModelC
 
 ![Four-corner DP in Torch mcGym](figures/demo_gifs/4corner_dp_torch.gif)
 
+---
+## Simple API
+![mcGym](https://github.com/user-attachments/assets/0528284b-9b3b-475e-8b2f-1467843702de)
 
 ## The waves and response of R/V Gunnerus
-
 <p float="left">
-  <img src="https://github.com/user-attachments/assets/6a84c799-70f6-4aa6-961d-9042fd690af8" width="30%" />
-  <img src="https://github.com/user-attachments/assets/5d77fbc4-c723-40e1-bfc4-1e7c39a23895" width="30%" />
+  <img src="figures/demo_gifs/vessel_motion3d__rvg_waveangle_270.gif" width="50%" />
+  <img src="https://github.com/user-attachments/assets/6a84c799-70f6-4aa6-961d-9042fd690af8" width="49%" />
+</p>
 </p>
 <p float="left">
-  <img src="figures/demo_gifs/vessel_motion3d__rvg_waveangle_270.gif" width="30%" />
-  <img src="figures/demo_gifs/wave_motion1d_2.gif" width="60%" />
+<img src="figures/demo_gifs/wave_motion1d_2.gif" width="50%" />
 </p>
 
 ---
