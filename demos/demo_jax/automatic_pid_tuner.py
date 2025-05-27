@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-PID CEM Tuning – optimise nine log-gains with the cross-entropy method
+PID CEM Tuning - optimise nine log-gains with the cross-entropy method
 and report the best candidate.
 
 Usage
@@ -9,7 +9,7 @@ Usage
 
 Author
 ------
-Kristian Magnus Roen – CEM version prepared May 2025
+Kristian Magnus Roen - CEM version prepared May 2025
 """
 
 # ---------------------------------------------------------------------#
