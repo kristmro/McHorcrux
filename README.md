@@ -57,21 +57,6 @@ This GIF uses the **torch_core** version of mcGym together with a custom `ModelC
 
 ---
 
-##### The mean speed ratio over wave numbers [JAX and PyTorch vs NumPy]
-- **JAX is consistently fastest** Across every resolution N and every integration-step count, the JAX curve sits at least an order of magnitude lower than NumPy and well below PyTorch.
-- **PyTorch overtakes NumPy for larger grids** The speed-up bars show Torch / NumPy < 1 once N ≥ 80, dropping to roughly 0.5× NumPy at N = 320.
-- **Memory, not runtime, becomes the limit at large N** The QTF tensor size grows as O(N²); doubling N quadruples required RAM/VRAM.
-  
-![image](https://github.com/user-attachments/assets/fb901693-4c32-472d-8ed1-36330e501733)
-
-#### Wall-clock runtime vs physical simulation time
-- **NumPy’s cost explodes with N** Mean runtime rises ≈ 14 × from N = 40 to 320, while JAX rises only ≈ 3 ×.
-- **Runtime scales linearly with the number of integration steps** Log-log “runtime vs steps” lines have slope ≈ 1 for all backends, meaning doubling the simulated time (or halving Δt) doubles wall-time.
-  
-![image](https://github.com/user-attachments/assets/f17a81cb-03ce-42a6-b6fc-42104676b7ce)
-
----
-
 ## Installation & Requirements
 
 You will need:
