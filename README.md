@@ -15,7 +15,9 @@ A [PyTorch](https://github.com/pytorch/pytorch)-powered variant of the [mcsimpy]
 
 ---
 ## Overview
-![mcHorcrux (1)](https://github.com/user-attachments/assets/30c36695-e6f3-4d72-9f48-0b9582509c5b)
+![mcHorcrux (1) (1)](https://github.com/user-attachments/assets/5f4e6277-efcc-4695-8717-89ebba14bb06)
+
+
 
 ---
 ## Demonstrations
