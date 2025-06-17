@@ -1,6 +1,6 @@
 # NumPy Core
 
-This directory hosts a **NumPy-based** motion-control pipeline for the **C/S Arctic Drillship (CSAD)** model from Marine Cybernetics (NTNU). It implements a gym-like simulation environment—called **MC-Gym**—designed for traditional control, **reinforcement learning (RL)**, or **model predictive control (MPC)**. While earlier versions explored meta-learning and model-based RL, **this current focus** is on standard controllers, observers, and wave simulation.
+This directory hosts a **NumPy-based** motion-control pipeline for the **C/S Arctic Drillship (CSAD)** and **R/V Gunnerus** model from Marine Cybernetics (NTNU). It implements a gym-like simulation environment called **MC-Gym** designed for traditional control.
 
 ---
 
