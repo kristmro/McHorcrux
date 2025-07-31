@@ -1,24 +1,29 @@
-#!/usr/bin/env bash
-# File: jax_core/meta_adaptive_ctrl/train.sh
 
-set -euo pipefail
-SCRIPT="jax_core/meta_adaptive_ctrl/csad/training_diag.py"
+#!/bin/bash
 
-# ── parameter grid ──────────────────────────────────────────────────────────
-seeds=(10 10 10 10 11 11 11 11 12 12 12 12)
-Ms=(2 5 10 20 2 5 10 20 2 5 10 20)
-pens=(0.8e-1 0.8e-1 0.8e-1 0.8e-1 0.8e-1 0.8e-1 0.8e-1 0.8e-1 0.8e-1 0.8e-1 0.8e-1 0.8e-1)
-# ────────────────────────────────────────────────────────────────────────────
+# Load Conda and activate 'tensor' env
+source ~/miniconda3/etc/profile.d/conda.sh
+conda activate tensor
 
-logs_dir="logs"
-mkdir -p "${logs_dir}"
+# Verify correct Python is being used
+echo "Python path in script: $(which python)"
+python -c "import jax; print(' JAX version:', jax.__version__)"
 
-for i in "${!seeds[@]}"; do
-  seed="${seeds[$i]}"
-  M="${Ms[$i]}"
-  pen="${pens[$i]}"
+# Add project to PYTHONPATH so jax_core can be found
+export PYTHONPATH=$PYTHONPATH:/home/kmroen/projects/McHorcrux
 
-  echo "▶︎  seed=${seed}  M=${M}  ctrl_pen=${pen}"
-  python "${SCRIPT}" "${seed}" "${M}" --ctrl_pen "${pen}" "$@" \
-     | tee "${logs_dir}/seed${seed}_M${M}_pen${pen}.log"
+# Training loop
+for seed in {0..2}
+do
+    for M in 2 5 10 20
+    do
+        file_path="data/training_results/csad/act_off/ctrl_pen_2/seed=${seed}_M=${M}.pkl"
+        if [ -f "$file_path" ]; then
+            echo "File $file_path exists. Skipping."
+        else
+            echo "seed = $seed, M = $M"
+            echo "meta train:"
+            python jax_core/meta_adaptive_ctrl/csad/training_diag.py $seed $M 
+        fi
+    done
 done

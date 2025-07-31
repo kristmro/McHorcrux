@@ -78,11 +78,11 @@ hparams = {
         'hdim':              32,         # number of hidden units per layer
         'train_frac':        0.75,       #
         'learning_rate':     1e-2,       # step size for gradient optimization
-        'num_steps':         1500,        # maximum number of gradient steps
+        'num_steps':         600,        # maximum number of gradient steps
         'regularizer_l2':    1e-4,       # coefficient for L2-regularization
         'regularizer_ctrl':  args.ctrl_pen,       #
         'regularizer_error': 0.,         #
-        'tracking_error':    1000,       # coefficient for tracking error
+        'tracking_error':    1e+4,       # coefficient for tracking error
         'T':                 12.,         # time horizon for each reference
         'dt':                1e-2,       # time step for numerical integration
         'num_refs':          30,         # reference trajectories to generate
@@ -307,7 +307,7 @@ if __name__ == "__main__":
         # Controller and adaptation law
         M, D, G, R = prior(q, dq)
         f_hat = A@y
-        τ = M@dv + D@v + G@e - f_hat - K@s
+        τ = M@dv + D@v + G@q - f_hat - K@s
         u = jnp.linalg.solve(R, τ)
         dA = P @ jnp.outer(s, y)
         # Apply control to "true" dynamics

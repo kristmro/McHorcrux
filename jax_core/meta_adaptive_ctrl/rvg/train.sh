@@ -6,7 +6,7 @@ conda activate tensor
 
 # Verify correct Python is being used
 echo "Python path in script: $(which python)"
-python -c "import jax; print('✅ JAX version:', jax.__version__)"
+python -c "import jax; print(' JAX version:', jax.__version__)"
 
 # Add project to PYTHONPATH so jax_core can be found
 export PYTHONPATH=$PYTHONPATH:/home/kmroen/projects/McHorcrux

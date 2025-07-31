@@ -173,7 +173,7 @@ def J(eta):
 """
 Utility functions for integrating ODEs.
 
-Author: Spencer M. Richards, Kristian Magnus Roen
+Author: Kristian Magnus Roen, Spencer M. Richards
 """
 def rk4_step_impl(x, dt, f, *args):
     k1 = f(x, *args)

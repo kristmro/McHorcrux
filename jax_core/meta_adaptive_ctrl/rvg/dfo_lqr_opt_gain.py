@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Positive-gain LQR / PID tuning for the 3-DOF RVG vessel model
-+ JIT-compiled demo trajectory & plot (à la pid_cem_tuning.py).
+
 """
 
 # ------------------------------------------------------------------#
@@ -66,7 +66,7 @@ Q_VEL = jnp.ones(NUM_DOF) * 5.0e1
 Q_INT = jnp.zeros(NUM_DOF)
 R_ACT = jnp.ones(NUM_DOF) * 1.0e-7
 
-LOG_MIN, LOG_MAX = -6.0, 7.0         # ⇒ gains ∈ [1e-6, 1e7]
+LOG_MIN, LOG_MAX = -6.0, 7.0         #  gains ∈ [1e-6, 1e7]
 
 # ------------------------------------------------------------------#
 # Generators
@@ -141,7 +141,7 @@ def simulate(ts, wl, t_knots, coefs,
 
 simulate_jit = jax.jit(simulate, static_argnames=["limit"])
 
-# Cost-only wrapper for the optimiser -------------------------------#
+# Cost-only wrapper for the optimiser 
 def make_objective(ts, wl, t_knots, coefs, limit):
     def obj(log_g):
         log_g = jnp.clip(log_g, LOG_MIN, LOG_MAX)
@@ -151,9 +151,7 @@ def make_objective(ts, wl, t_knots, coefs, limit):
         return J
     return obj
 
-# ------------------------------------------------------------------#
-# Main
-# ------------------------------------------------------------------#
+
 def main():
     global key
     key,t_knots,coefs = make_reference(key)
@@ -164,9 +162,9 @@ def main():
     x0 = jnp.log10(jnp.array([3000.,3000.,3000., 2.,2.,2., 3000.,3000.,3000.]))
 
     objective = make_objective(ts, wl, t_knots, coefs, limit)
-    print("⏳ compiling objective …")
+    print(" compiling objective …")
     _ = objective(x0).block_until_ready()
-    print("✅ compile done, starting Nelder–Mead")
+    print(" compile done, starting Nelder–Mead")
 
     start = time.time()
     res = minimize(

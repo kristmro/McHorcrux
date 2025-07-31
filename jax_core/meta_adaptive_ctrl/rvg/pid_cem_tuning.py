@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-PID CEM Tuning – optimise nine log-gains with the cross-entropy method
+PID CEM Tuning - optimise nine log-gains with the cross-entropy method
 and report the best candidate.
 
 Usage
@@ -9,7 +9,7 @@ Usage
 
 Author
 ------
-Kristian Magnus Roen – CEM version prepared May 2025
+Kristian Magnus Roen - CEM version prepared May 2025
 """
 
 # ---------------------------------------------------------------------#
@@ -57,8 +57,8 @@ HPARAMS = {
     "num_knots": 6,
     "poly_orders": (9, 9, 6),
     "deriv_orders": (4, 4, 2),
-    "min_step": (-3.0, -3.0, -jnp.pi / 3),
-    "max_step": (3.0, 3.0,  jnp.pi / 3),
+    "min_step": (-3.0, -3.0, -jnp.pi / 5),
+    "max_step": (3.0, 3.0,  jnp.pi / 5),
     "integral_abs_limit": 1e+5,  # Default integral clamp limit
 }
 
@@ -87,7 +87,7 @@ def make_reference_spline(key):
 # ---------------------------------------------------------------------#
 def make_wave(key):
     key, subkey = jax.random.split(key)
-    hs, tp, wdir = 0.0, 15.0, 0.0        # moderate sea state
+    hs, tp, wdir = 3.0, 15.0, 0.0        # moderate sea state
     wl = disturbance((hs, tp, wdir), subkey)
     return key, wl
 
@@ -170,7 +170,7 @@ def simulate_pid(ts, wl, t_knots, coefs, Kp, Ki, Kd, integral_abs_limit, prior=p
     dr = jnp.vstack((dr0, dr))
 
     e = jnp.concatenate((q - r, dq - dr), axis=-1)
-    e = e.at[:, -1].set(e[:, -1] * 9.0) # heading error because it is in the e-1 region instead of 0
+    e = e.at[:, -1].set(e[:, -1] * 50.0) # heading error because it is in the e-1 region instead of 0 (remmeber that it is squared)
     rms_cost = jnp.sqrt(jnp.mean(jnp.sum(e**2, axis=-1)))
     safe_rms_cost = jnp.nan_to_num(rms_cost, nan=jnp.inf)
     return q, r, safe_rms_cost
@@ -185,10 +185,10 @@ ELITE_FRAC  = 0.15        # top 10 % survive
 NUM_ITER    = 15          # generations
 DIM         = NUM_DOF * 3 # 9 log-gain parameters
 
-init_mean = jnp.array([3.0, 3.0, 3.0,  # log10 Kp
-                       2.0, 2.0, 0.0,  # log10 Ki
-                       3.5, 3.5, 3.5]) # log10 Kd
-init_std  = jnp.ones(DIM) * 1.0        # one order of magnitude spread
+init_mean = jnp.array([0.5, 0.5, 0.5,  # log10 Kp
+                       0.5, 0.5, 0.5,  # log10 Ki
+                       0.5, 0.5, 0.5]) # log10 Kd
+init_std  = jnp.ones(DIM) * 2.0      # one order of magnitude spread
 
 def cem_optimize(key, mean, std, ts, wl, t_knots, coefs, integral_abs_limit):
     """
@@ -210,12 +210,12 @@ def cem_optimize(key, mean, std, ts, wl, t_knots, coefs, integral_abs_limit):
     # Kp: linear_min=1e-1, linear_max=1e6  => log10_min=-1.0, log10_max=6.0
     # Ki: linear_min=1e-1, linear_max=1e5  => log10_min=-1.0, log10_max=5.0
     # Kd: linear_min=1e-1, linear_max=1e5  => log10_min=-1.0, log10_max=5.0
-    log_mins_kp = jnp.full((NUM_DOF,), -1.0)
-    log_maxs_kp = jnp.full((NUM_DOF,), 7.0)
-    log_mins_ki = jnp.full((NUM_DOF,), -1.0)
+    log_mins_kp = jnp.full((NUM_DOF,), -4.0)
+    log_maxs_kp = jnp.full((NUM_DOF,), 7.5)
+    log_mins_ki = jnp.full((NUM_DOF,), -4.0)
     log_maxs_ki = jnp.full((NUM_DOF,), 5.0)
-    log_mins_kd = jnp.full((NUM_DOF,), -1.0)
-    log_maxs_kd = jnp.full((NUM_DOF,), 6.0)
+    log_mins_kd = jnp.full((NUM_DOF,), -4.0)
+    log_maxs_kd = jnp.full((NUM_DOF,), 7.5)
     
     log_mins = jnp.concatenate([log_mins_kp, log_mins_ki, log_mins_kd])
     log_maxs = jnp.concatenate([log_maxs_kp, log_maxs_ki, log_maxs_kd])
@@ -369,6 +369,7 @@ def main():
     q_final, r_final, _ = simulate_pid_jit(
         ts, wl, t_knots, coefs, Kp_best, Ki_best, Kd_best, integral_abs_limit
     )
+
     plot_simulation_trip(ts, q_final, r_final, args.seed, figures_dir, gains_label="Best CEM Gains")
 
 

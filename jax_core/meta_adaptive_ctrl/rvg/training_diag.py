@@ -316,7 +316,7 @@ if __name__ == "__main__":
         # Controller and adaptation law
         M, D, G, R = prior(q, dq)
         f_hat = A@y
-        τ = M@dv + D@v + G@e - f_hat - K @ sat(s)
+        τ = M@dv + D@v + G@q - f_hat - K @ sat(s)
         u = jnp.linalg.solve(R, τ)
         dA = P @ jnp.outer(s, y)
         # Apply control to "true" dynamics

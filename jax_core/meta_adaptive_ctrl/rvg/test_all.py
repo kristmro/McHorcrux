@@ -1,8 +1,8 @@
 """
 Test learned models of the adaptive controller on the 6-DOF plant with
-wave loads – plus a pure PID benchmark.
+wave loads - plus a pure PID benchmark.
 
-Author: Kristian Magnus Røen
+Author: Kristian Magnus Roen
 """
 
 # ---------------------------------------------------------------------#
@@ -182,14 +182,14 @@ def simulate_adaptive(ts, wl, t_knots, coefs, params, min_ref=min_ref, max_ref=m
         #     """Saturation function."""
         #     phi = 7
         #     return jnp.where(jnp.abs(s/phi) > 1, jnp.sign(s), s/phi)
-        def sat(s):
-            """Saturation function."""
-            espilon_1=5
-            espilon_2=7
-            return jnp.tanh(s/espilon_1) * (espilon_2+1)
+        # def sat(s):
+        #     """Saturation function."""
+        #     espilon_1=5
+        #     espilon_2=7
+        #     return jnp.tanh(s/espilon_1) * (espilon_2+1)
         # Controller and adaptation law
         M, D, G, R = prior(q, dq)
-        τ = M@dv + D@v + G@e - f_hat - K @ sat(s)
+        τ = M@dv + D@v + G@e - f_hat - K @ s
         u = jnp.linalg.solve(R, τ)
         return u, τ
 
@@ -335,13 +335,13 @@ if __name__ == "__main__":
         'beta_params' : (a, b),
         "gains": {
             # adaptive controllers: Λ (Kd), K (Kp), P (Ki) – three scalars
-            "Λ": (30.0,),
-            "K": (50.0, 5000.0),
-            "P": (50.0, 5000.0),
+            "Λ": (10.0,),
+            "K": (50.0, 100.0),
+            "P": (50.0, 100.0),
             # PID-only grid 
-            "Kp": (jnp.array([8.8603e+04, 9.6996e+06, 8.8149e+06]),),
-            "Ki": (jnp.array([1.4856e+01, 2.5148e+04, 8.6869e+02]),jnp.array([1.5494e+01, 4.7215e+01, 1.7311e+00])),
-            "Kd": (jnp.array([1.0000e+06, 1.0000e+06, 9.8118e+05]), jnp.array([1.0000e+06, 1.0000e+06, 1.3911e+04])),
+            "Kp": (jnp.array([1293452.  ,   135905.16, 8.8149e+06]),),
+            "Ki": (jnp.array([1.4856e+04, 2.5148e+01, 1.6869e+00]),jnp.array([6.5168441e+04, 3.9588146e+01, 1.7311e+00])),
+            "Kd": (jnp.array([1.0000e+04, 1.0000e+05, 9.8118e+03]), jnp.array([6.1398863e+04, 2.8914574e+05, 1.3911e+04])),
         },
     }
     # grid shapes (adaptive and PID use different sets but same length tuples)
@@ -365,7 +365,6 @@ if __name__ == "__main__":
         "training_results",
         "rvg",
         "model_uncertainty",
-        "tanh",
         "act_off",
         "ctrl_pen_6",
         f"seed={hparams['seed']}_M={hparams['num_subtraj']}.pkl",
@@ -419,6 +418,9 @@ if __name__ == "__main__":
         params_base['Λ'] = λ * jnp.eye(num_dof)
         params_base['K'] = k * jnp.eye(num_dof)
         params_base['P'] = p * jnp.eye(num_dof)
+        params_base['Λ'] = params_base['Λ'].at[-1, -1].set(0.1 * λ)
+        params_base['K'] = params_base['K'].at[-1, -1].set(0.1 * k)
+        params_base['P'] = params_base['P'].at[-1, -1].set(0.1 * p)
         q, dq, u, τ, r, dr = simulate_adaptive(ts, wl_batched, t_knots, coefs, params_base)
         e = np.concatenate((q - r, dq - dr), axis=-1)
         rms_e = np.sqrt(np.mean(np.sum(e**2, axis=-1), axis=-1))
@@ -463,7 +465,6 @@ if __name__ == "__main__":
         "testing_results",
         "rvg",
         "model_uncertainty",
-        "tanh",
         "all",
         "act_off",
         "ctrl_pen_6",

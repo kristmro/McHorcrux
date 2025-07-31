@@ -1,0 +1,23 @@
+# Load Conda and activate 'tensor' env
+source ~/miniconda3/etc/profile.d/conda.sh
+conda activate tensor
+
+# Verify correct Python is being used
+echo "Python path in script: $(which python)"
+python -c "import jax; print(' JAX version:', jax.__version__)"
+
+# Add project to PYTHONPATH so jax_core can be found
+export PYTHONPATH=$PYTHONPATH:/home/kmroen/projects/McHorcrux
+for seed in {0..5}
+do
+    for M in 2 5 10 20
+    do
+        echo "seed = $seed, M = $M"
+
+        echo "testing all:"
+        python -m jax_core.meta_adaptive_ctrl.rvg.test_all_ideal $seed $M 
+        
+        echo "four corner test"
+        python jax_core/meta_adaptive_ctrl/rvg/test_four_corner_ideal.py $seed $M 
+    done
+done

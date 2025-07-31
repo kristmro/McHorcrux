@@ -1,22 +1,21 @@
-#!/usr/bin/env bash
-# File: jax_core/meta_adaptive_ctrl/test.sh
 
-set -euo pipefail
-SCRIPT="jax_core/meta_adaptive_ctrl/csad/test_all.py"
-#1 1 2 1 0
-#5 10 2 20 20
+# Load Conda and activate 'tensor' env
+source ~/miniconda3/etc/profile.d/conda.sh
+conda activate tensor
 
+# Verify correct Python is being used
+echo "Python path in script: $(which python)"
+python -c "import jax; print(' JAX version:', jax.__version__)"
 
-# ── parameter grid ──────────────────────────────────────────────────────────
-seeds=(10 10)
-Ms=(10 20)
-# ────────────────────────────────────────────────────────────────────────────
+# Add project to PYTHONPATH so jax_core can be found
+export PYTHONPATH=$PYTHONPATH:/home/kmroen/projects/McHorcrux
+for seed in {0..2}
+do
+    for M in 2 5 10 20
+    do
+        echo "seed = $seed, M = $M"
 
-
-for i in "${!seeds[@]}"; do
-  seed="${seeds[$i]}"
-  M="${Ms[$i]}"
-
-  echo "▶︎  seed=${seed}  M=${M}"
-  python "${SCRIPT}" "${seed}" "${M}" --use_cpu --use_x64 
+        echo "testing all:"
+        python jax_core/meta_adaptive_ctrl/csad/test_all.py $seed $M 
+    done
 done
