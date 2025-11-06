@@ -86,7 +86,7 @@ You will need:
   
         ```
         
-    - **mclsimpy** (Simulator for Numpy core):
+    - **mcsimpy** (Simulator for Numpy core):
         
         ```bash
         pip install git+https://github.com/NTNU-MCS/mcsimpy.git@master

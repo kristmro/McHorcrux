@@ -11,7 +11,7 @@
 # ---------------------------------------------------------------------------
 
 import numpy as np
-from mclsimpy.utils import Rz, pipi, six2threeDOF, three2sixDOF
+from mcsimpy.utils import Rz, pipi, six2threeDOF, three2sixDOF
 
 
 class LTVKF():

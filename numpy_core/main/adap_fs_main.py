@@ -4,8 +4,8 @@
 import sys
 import numpy as np
 import time
-from mclsimpy.utils import Rz, six2threeDOF, three2sixDOF
-from mclsimpy.simulator.csad import CSAD_DP_6DOF
+from mcsimpy.utils import Rz, six2threeDOF, three2sixDOF
+from mcsimpy.simulator.csad import CSAD_DP_6DOF
 import numpy_core.allocations.allocator_psudo as al
 import numpy_core.thruster.thruster_dynamics as dynamics
 import numpy_core.thruster.thruster as thruster

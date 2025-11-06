@@ -27,7 +27,7 @@ Date: 12.02.2025
 
 
 import numpy as np
-from mclsimpy.utils import Rz, six2threeDOF, three2sixDOF, pipi, Smat
+from mcsimpy.utils import Rz, six2threeDOF, three2sixDOF, pipi, Smat
 
 class AdaptiveFSController:
     """

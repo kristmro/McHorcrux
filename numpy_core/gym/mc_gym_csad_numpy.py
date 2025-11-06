@@ -69,10 +69,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pygame
 
-from mclsimpy.simulator.csad import CSAD_DP_6DOF
-from mclsimpy.waves.wave_loads import WaveLoad
-from mclsimpy.waves.wave_spectra import JONSWAP
-from mclsimpy.utils import three2sixDOF, six2threeDOF, Rz, pipi
+from mcsimpy.simulator.csad import CSAD_DP_6DOF
+from mcsimpy.waves.wave_loads import WaveLoad
+from mcsimpy.waves.wave_spectra import JONSWAP
+from mcsimpy.utils import three2sixDOF, six2threeDOF, Rz, pipi
 
 from numpy_core.ref_gen.reference_filter import ThrdOrderRefFilter
 

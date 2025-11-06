@@ -19,8 +19,8 @@ from torch_core.simulator.vessels.csad_torch import CSAD_6DOF as CSAD_DP_6DOF_To
 from torch_core.simulator.waves.wave_load_torch import WaveLoad as WaveLoadTorch
 from torch_core.simulator.waves.wave_spectra_torch import JONSWAP as JONSWAPTorch
 
-from mclsimpy.simulator import CSAD_DP_6DOF
-from mclsimpy.waves import JONSWAP, WaveLoad
+from mcsimpy.simulator import CSAD_DP_6DOF
+from mcsimpy.waves import JONSWAP, WaveLoad
 
 from functools import lru_cache
 

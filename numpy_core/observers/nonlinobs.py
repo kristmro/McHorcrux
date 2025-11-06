@@ -11,7 +11,7 @@
 # ---------------------------------------------------------------------------
 
 import numpy as np
-from mclsimpy.utils import Rz, pipi
+from mcsimpy.utils import Rz, pipi
 
 
 class NonlinObs3dof:

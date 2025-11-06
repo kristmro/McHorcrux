@@ -15,7 +15,7 @@
 
 # Imports
 import numpy as np
-from mclsimpy.utils import Rz, pipi, six2threeDOF
+from mcsimpy.utils import Rz, pipi, six2threeDOF
 
 
 class EKF():

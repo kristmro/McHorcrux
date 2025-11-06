@@ -11,7 +11,7 @@
 # ---------------------------------------------------------------------------
 
 import numpy as np
-from mclsimpy.utils import Rz
+from mcsimpy.utils import Rz
 
 class ThrdOrderRefFilter():
     """Third-order reference filter for guidance. 

@@ -2,10 +2,6 @@ from __future__ import annotations
 """
 Extended plotting script for the adaptive-control study (tidy y-axis labels).
 
-Only differences from the version you posted
-─────────────────────────────────────────────
-✓ Bottom-row tick labels shown only on first column → no more overlap.  
-✓ Slightly larger wspace so the first-column labels have breathing room.
 """
 
 # ── Imports ──────────────────────────────────────────────────────────────────

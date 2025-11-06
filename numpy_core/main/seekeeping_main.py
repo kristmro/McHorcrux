@@ -2,7 +2,7 @@ import cProfile
 import pstats
 from numpy_core.gym.mc_gym_csad_numpy import McGym
 from numpy_core.controllers.adaptive_seakeeping import MRACShipController
-from mclsimpy.utils import Rz, six2threeDOF, three2sixDOF
+from mcsimpy.utils import Rz, six2threeDOF, three2sixDOF
 import numpy as np
 import time
 def main():

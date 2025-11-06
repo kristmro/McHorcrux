@@ -2,12 +2,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
-from mclsimpy.simulator.csad import CSAD_DP_6DOF
+from mcsimpy.simulator.csad import CSAD_DP_6DOF
 from numpy_core.observers.ekf import EKF
-from mclsimpy.waves.wave_loads import WaveLoad
-from mclsimpy.waves.wave_spectra import JONSWAP
+from mcsimpy.waves.wave_loads import WaveLoad
+from mcsimpy.waves.wave_spectra import JONSWAP
 
-from mclsimpy.utils import six2threeDOF, three2sixDOF
+from mcsimpy.utils import six2threeDOF, three2sixDOF
 
 # Simulation parameters
 dt = 0.01  # Time step
